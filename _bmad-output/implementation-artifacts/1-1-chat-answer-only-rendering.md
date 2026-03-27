@@ -1,6 +1,6 @@
 # Story 1.1: Chat Answer-Only Rendering
 
-Status: ready-for-dev
+Status: ready-for-review
 
 ## Source Artifact
 
@@ -22,25 +22,25 @@ so that the conversation stays readable while citations remain available on dema
 
 ## Tasks / Subtasks
 
-- [ ] Remove transcript-level references chrome from assistant messages while keeping the save action reachable (AC: 1, 3, 5)
-  - [ ] Keep assistant rendering in `components/pipeline/PipelineSteps.tsx` limited to `MessageMarkdown` plus the existing `Save Full Response` action.
-  - [ ] Do not render any fallback references list below assistant messages, even when `message.citations` exists.
-  - [ ] Reconcile with the current dirty-worktree change in `components/pipeline/PipelineSteps.tsx` instead of overwriting it.
+- [x] Remove transcript-level references chrome from assistant messages while keeping the save action reachable (AC: 1, 3, 5)
+  - [x] Keep assistant rendering in `components/pipeline/PipelineSteps.tsx` limited to `MessageMarkdown` plus the existing `Save Full Response` action.
+  - [x] Do not render any fallback references list below assistant messages, even when `message.citations` exists.
+  - [x] Reconcile with the current dirty-worktree change in `components/pipeline/PipelineSteps.tsx` instead of overwriting it.
 
-- [ ] Preserve the existing citation review interaction path (AC: 2, 4)
-  - [ ] Keep `components/pipeline/MessageMarkdown.tsx` as the only in-transcript citation affordance via `#citation-*` links.
-  - [ ] Leave `components/pipeline/PipelineModals.tsx` citation modal behavior intact, including the no-video case.
-  - [ ] Do not change citation save behavior beyond ensuring it continues to save only the visible excerpt text.
+- [x] Preserve the existing citation review interaction path (AC: 2, 4)
+  - [x] Keep `components/pipeline/MessageMarkdown.tsx` as the only in-transcript citation affordance via `#citation-*` links.
+  - [x] Leave `components/pipeline/PipelineModals.tsx` citation modal behavior intact, including the no-video case.
+  - [x] Do not change citation save behavior beyond ensuring it continues to save only the visible excerpt text.
 
-- [ ] Keep answer-body parsing and save semantics aligned (AC: 1, 5)
-  - [ ] Reuse `lib/chat/shared.ts` appendix-stripping behavior so `Message.content` remains answer-only markdown.
-  - [ ] Confirm `handleSaveSnippet(message.content)` in `components/pipeline/PipelinePageClient.tsx` still saves only the displayed assistant content.
-  - [ ] Harden parsing only if a real backend variant requires it; do not move parsing logic into JSX.
+- [x] Keep answer-body parsing and save semantics aligned (AC: 1, 5)
+  - [x] Reuse `lib/chat/shared.ts` appendix-stripping behavior so `Message.content` remains answer-only markdown.
+  - [x] Confirm `handleSaveSnippet(message.content)` in `components/pipeline/PipelinePageClient.tsx` still saves only the displayed assistant content.
+  - [x] Harden parsing only if a real backend variant requires it; do not move parsing logic into JSX.
 
-- [ ] Add focused verification for appendix stripping and preserved citation mapping (AC: 1, 2, 4, 5)
-  - [ ] Extend `tests/chat/shared.test.ts` for answer-only parsing and appendix stripping.
-  - [ ] If a lightweight render harness is practical without expanding scope, add one focused assistant-rendering assertion; otherwise rely on manual UI verification.
-  - [ ] Run `npm test`, `npm run lint`, and `npm run build`.
+- [x] Add focused verification for appendix stripping and preserved citation mapping (AC: 1, 2, 4, 5)
+  - [x] Extend `tests/chat/shared.test.ts` for answer-only parsing and appendix stripping.
+  - [x] Lightweight render harness was not practical under the current Vitest JSX/import-analysis setup; manual UI verification remains the transcript-level check.
+  - [x] Run `npm test`, `npm run lint`, and `npm run build`.
 
 ## Dev Notes
 
@@ -88,7 +88,7 @@ so that the conversation stays readable while citations remain available on dema
 
 ### Agent Model Used
 
-_TBD by dev agent_
+`Codex GPT-5`
 
 ### Debug Log References
 
@@ -98,6 +98,10 @@ _TBD by dev agent_
 
 - Preserve answer-only transcript rendering without changing citation modal semantics.
 - Treat current dirty-worktree changes on `PipelineSteps.tsx` and `lib/chat/shared.ts` as the starting point.
+- Verified current source already satisfied the rendering-only and save-only acceptance paths; implementation work centered on regression coverage and story validation.
+- Added parser regression coverage for appendix URL mapping by citation number and the no-video citation case.
+- Attempted a lightweight transcript render assertion, but reverted it because the current Vitest setup cannot import JSX-bearing pipeline components without broader harness changes outside story scope.
+- Verification complete: `npm test`, `npm run lint`, and `npm run build` all passed on the final change set.
 
 ### File List
 

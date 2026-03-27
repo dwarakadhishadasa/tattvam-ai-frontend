@@ -4,7 +4,10 @@ import type {
   PersistedVisualSettings,
   VisualSettingKey,
 } from "../../components/pipeline/types"
-import { isValidPersistedSessionRecord, isValidVisualSettingRecord } from "./schema"
+import {
+  isValidVisualSettingRecord,
+  normalizePersistedSessionRecord,
+} from "./schema"
 
 export const PERSISTENCE_DATABASE_NAME = "tattvam-pipeline"
 const PERSISTENCE_DATABASE_VERSION = 1
@@ -26,7 +29,10 @@ export async function getAllSessions(indexedDb?: IDBFactory): Promise<PersistedS
   const database = await openPersistenceDatabase(indexedDb)
   const result = await runRequest<unknown[]>(database.transaction(SESSION_STORE_NAME, "readonly").objectStore(SESSION_STORE_NAME).getAll())
   database.close()
-  return result.filter(isValidPersistedSessionRecord).sort((left, right) => right.updatedAt - left.updatedAt)
+  return result
+    .map((session) => normalizePersistedSessionRecord(session))
+    .filter((session): session is PersistedSessionRecord => session !== null)
+    .sort((left, right) => right.updatedAt - left.updatedAt)
 }
 
 export async function getSession(
@@ -36,7 +42,7 @@ export async function getSession(
   const database = await openPersistenceDatabase(indexedDb)
   const result = await runRequest<unknown>(database.transaction(SESSION_STORE_NAME, "readonly").objectStore(SESSION_STORE_NAME).get(sessionId))
   database.close()
-  return isValidPersistedSessionRecord(result) ? result : null
+  return normalizePersistedSessionRecord(result)
 }
 
 export async function putSession(

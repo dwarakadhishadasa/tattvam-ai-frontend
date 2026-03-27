@@ -1,6 +1,6 @@
 import type { Citation } from "@/lib/chat/shared"
 
-export type PipelineStep = 0 | 1 | 2 | 3
+export type PipelineStep = 0 | 1 | 2
 
 export type TalkType = "verse" | "general" | "festival" | "yatra" | null
 
@@ -11,9 +11,24 @@ export type Message = {
   citations?: Citation[]
 }
 
+export type NotebookEntrySourceType = "response" | "citation" | "context"
+
+export type NotebookReadiness = "insufficient" | "ready"
+
 export type SavedSnippet = {
   id: string
+  sourceMessageId: string | null
+  sourceType: NotebookEntrySourceType
+  sourceContent: string
   content: string
+  isEdited: boolean
+  updatedAt: number
+}
+
+export type NotebookEntrySaveInput = {
+  sourceMessageId: string | null
+  sourceType: NotebookEntrySourceType
+  sourceContent: string
 }
 
 export type VerseData = {
@@ -40,6 +55,7 @@ export type SessionState = {
   messages: Message[]
   savedSnippets: SavedSnippet[]
   notebookName: string
+  activeNotebookEntryId: string | null
   generatedNotebookId: string | null
   generatedSlides: string
 }

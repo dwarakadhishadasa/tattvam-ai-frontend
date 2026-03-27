@@ -1,6 +1,8 @@
 import { createWelcomeMessage, INITIAL_VERSE_DETAILS } from "@/components/pipeline/constants"
 import type {
   Message,
+  NotebookEntrySaveInput,
+  NotebookReadiness,
   SavedSnippet,
   Session,
   SessionState,
@@ -33,6 +35,7 @@ export function createEmptySessionState(): SessionState {
     messages: createInitialMessages(),
     savedSnippets: [],
     notebookName: "",
+    activeNotebookEntryId: null,
     generatedNotebookId: null,
     generatedSlides: "",
   }
@@ -113,6 +116,73 @@ export function countWords(text: string): number {
 
 export function countSnippetWords(snippets: SavedSnippet[]): number {
   return snippets.reduce((total, snippet) => total + countWords(snippet.content), 0)
+}
+
+export function canCompileNotebook(snippets: SavedSnippet[]): boolean {
+  return snippets.length > 0
+}
+
+export function getNotebookReadiness(
+  snippets: SavedSnippet[],
+  lectureDuration: number,
+): NotebookReadiness {
+  return countSnippetWords(snippets) >= getRequiredWordCount(lectureDuration)
+    ? "ready"
+    : "insufficient"
+}
+
+export function buildNotebookCompileSource(snippets: SavedSnippet[]): string {
+  return snippets.map((snippet) => snippet.content).join("\n\n")
+}
+
+export function appendNotebookEntry(
+  snippets: SavedSnippet[],
+  entry: NotebookEntrySaveInput,
+): SavedSnippet[] {
+  if (snippets.some((snippet) => snippet.sourceContent === entry.sourceContent)) {
+    return snippets
+  }
+
+  const timestamp = Date.now()
+
+  return [
+    ...snippets,
+    {
+      id: timestamp.toString(),
+      sourceMessageId: entry.sourceMessageId,
+      sourceType: entry.sourceType,
+      sourceContent: entry.sourceContent,
+      content: entry.sourceContent,
+      isEdited: false,
+      updatedAt: timestamp,
+    },
+  ]
+}
+
+export function updateNotebookEntryContent(
+  snippets: SavedSnippet[],
+  entryId: string,
+  nextContent: string,
+): SavedSnippet[] {
+  const timestamp = Date.now()
+
+  return snippets.map((snippet) =>
+    snippet.id === entryId
+      ? {
+          ...snippet,
+          content: nextContent,
+          isEdited: nextContent !== snippet.sourceContent,
+          updatedAt: timestamp,
+        }
+      : snippet,
+  )
+}
+
+export function removeNotebookEntry(
+  snippets: SavedSnippet[],
+  entryId: string,
+): SavedSnippet[] {
+  return snippets.filter((snippet) => snippet.id !== entryId)
 }
 
 export function getRequiredWordCount(lectureDuration: number): number {

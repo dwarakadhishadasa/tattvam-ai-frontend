@@ -14,7 +14,13 @@ import {
 } from "lucide-react"
 
 import { YouTubeEmbed } from "@/components/pipeline/YouTubeEmbed"
-import type { RecoveryNotice, SessionIndexEntry, TalkType, VerseData } from "@/components/pipeline/types"
+import type {
+  NotebookEntrySaveInput,
+  RecoveryNotice,
+  SessionIndexEntry,
+  TalkType,
+  VerseData,
+} from "@/components/pipeline/types"
 import type { Citation } from "@/lib/chat/shared"
 
 type ContextReferenceModalProps = {
@@ -22,7 +28,7 @@ type ContextReferenceModalProps = {
   extractedVerseData: VerseData | null
   talkType: TalkType
   onClose: () => void
-  onSaveSnippet: (content: string) => void
+  onSaveSnippet: (entry: NotebookEntrySaveInput) => void
 }
 
 export function ContextReferenceModal({
@@ -110,9 +116,11 @@ export function ContextReferenceModal({
               <div className="flex gap-3">
                 <button
                   onClick={() => {
-                    onSaveSnippet(
-                      `${extractedVerseData.title}\n\n${extractedVerseData.translation}\n\n${extractedVerseData.purport}`,
-                    )
+                    onSaveSnippet({
+                      sourceMessageId: null,
+                      sourceType: "context",
+                      sourceContent: `${extractedVerseData.title}\n\n${extractedVerseData.translation}\n\n${extractedVerseData.purport}`,
+                    })
                     onClose()
                   }}
                   className="inline-flex items-center gap-2 text-sm font-bold text-white bg-zinc-900 hover:bg-zinc-800 px-6 py-3 rounded-xl transition-all shadow-sm"
@@ -130,12 +138,21 @@ export function ContextReferenceModal({
 }
 
 type CitationModalProps = {
-  citation: Citation | null
+  citationSelection: {
+    citation: Citation
+    sourceMessageId: string | null
+  } | null
   onClose: () => void
-  onSaveSnippet: (content: string) => void
+  onSaveSnippet: (entry: NotebookEntrySaveInput) => void
 }
 
-export function CitationModal({ citation, onClose, onSaveSnippet }: CitationModalProps) {
+export function CitationModal({
+  citationSelection,
+  onClose,
+  onSaveSnippet,
+}: CitationModalProps) {
+  const citation = citationSelection?.citation ?? null
+
   return (
     <AnimatePresence>
       {citation && (
@@ -197,7 +214,11 @@ export function CitationModal({ citation, onClose, onSaveSnippet }: CitationModa
 
               <button
                 onClick={() => {
-                  onSaveSnippet(citation.text)
+                  onSaveSnippet({
+                    sourceMessageId: citationSelection?.sourceMessageId ?? null,
+                    sourceType: "citation",
+                    sourceContent: citation.text,
+                  })
                   onClose()
                 }}
                 className="inline-flex items-center gap-2 text-sm font-bold text-white bg-zinc-900 hover:bg-zinc-800 px-5 py-2.5 rounded-xl transition-all shadow-sm"

@@ -28,9 +28,8 @@ export const PIPELINE_STEPS: Array<{
   icon: LucideIcon
 }> = [
   { id: 0, title: "Context", icon: LayoutTemplate, desc: "Define talk type" },
-  { id: 1, title: "Extraction", icon: FileText, desc: "Chat & save insights" },
-  { id: 2, title: "Synthesis", icon: BookOpen, desc: "Compile workspace" },
-  { id: 3, title: "Presentation", icon: LayoutTemplate, desc: "Generate slides" },
+  { id: 1, title: "Extraction", icon: FileText, desc: "Chat, review, and compile" },
+  { id: 2, title: "Presentation", icon: LayoutTemplate, desc: "Generate slides" },
 ]
 
 export function createWelcomeMessage(): Message {

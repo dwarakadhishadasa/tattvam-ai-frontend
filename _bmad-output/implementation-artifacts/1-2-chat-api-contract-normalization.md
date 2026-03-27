@@ -1,6 +1,6 @@
 # Story 1.2: Chat API Contract Normalization
 
-Status: ready-for-dev
+Status: ready-for-review
 
 ## Source Artifact
 
@@ -22,26 +22,26 @@ so that the browser can render and persist stable fields without parsing provide
 
 ## Tasks / Subtasks
 
-- [ ] Introduce a server-owned chat normalizer and keep raw downstream types off the client boundary (AC: 1, 2, 3, 4)
-  - [ ] Create `lib/chat/normalize.ts` to own structural appendix detection, URL extraction, and normalized contract assembly.
-  - [ ] Prefer explicit reference URLs (`url`, `source_url`, `timestamped_url`, `link`) over appendix-derived mapping.
-  - [ ] Use structural tail analysis rather than heading-label equality so dynamic labels do not break normalization.
+- [x] Introduce a server-owned chat normalizer and keep raw downstream types off the client boundary (AC: 1, 2, 3, 4)
+  - [x] Create `lib/chat/normalize.ts` to own structural appendix detection, URL extraction, and normalized contract assembly.
+  - [x] Prefer explicit reference URLs (`url`, `source_url`, `timestamped_url`, `link`) over appendix-derived mapping.
+  - [x] Use structural tail analysis rather than heading-label equality so dynamic labels do not break normalization.
 
-- [ ] Return the normalized contract from `/api/chat` without breaking existing transport/error handling (AC: 1, 2, 3, 4)
-  - [ ] Update `app/api/chat/route.ts` to return the app-facing shape with `answerBody`, `citations`, `conversationId`, `turnNumber`, and `isFollowUp`.
-  - [ ] Preserve `POST /api/chat` as the frontend entry point and preserve request body shape `{ question }`.
-  - [ ] Keep the current backend-unavailable handling from `ChatBackendUnavailableError` and preserve non-OK status passthrough.
+- [x] Return the normalized contract from `/api/chat` without breaking existing transport/error handling (AC: 1, 2, 3, 4)
+  - [x] Update `app/api/chat/route.ts` to return the app-facing shape with `answerBody`, `citations`, `conversationId`, `turnNumber`, and `isFollowUp`.
+  - [x] Preserve `POST /api/chat` as the frontend entry point and preserve request body shape `{ question }`.
+  - [x] Keep the current backend-unavailable handling from `ChatBackendUnavailableError` and preserve non-OK status passthrough.
 
-- [ ] Move live-response consumption to the normalized contract while preserving restore compatibility (AC: 1, 5)
-  - [ ] Update `lib/chat/shared.ts` to hold app-facing chat types only, or clearly separate normalized client types from raw downstream types.
-  - [ ] Update `lib/chat/client.ts` to fetch the normalized route contract.
-  - [ ] Update `components/pipeline/PipelinePageClient.tsx` to append assistant messages from explicit `answerBody` and `citations` instead of calling client-side normalization on fresh responses.
-  - [ ] Keep `stripCitationAppendix()` or an equivalent restore-time compatibility helper for already persisted legacy assistant messages.
+- [x] Move live-response consumption to the normalized contract while preserving restore compatibility (AC: 1, 5)
+  - [x] Update `lib/chat/shared.ts` to hold app-facing chat types only, or clearly separate normalized client types from raw downstream types.
+  - [x] Update `lib/chat/client.ts` to fetch the normalized route contract.
+  - [x] Update `components/pipeline/PipelinePageClient.tsx` to append assistant messages from explicit `answerBody` and `citations` instead of calling client-side normalization on fresh responses.
+  - [x] Keep `stripCitationAppendix()` or an equivalent restore-time compatibility helper for already persisted legacy assistant messages.
 
-- [ ] Add focused regression coverage for server normalization and legacy restore safety (AC: 1, 2, 3, 4, 5)
-  - [ ] Add `tests/chat/normalize.test.ts` for appendix stripping, explicit URL preference, orphan URL exclusion, and ambiguous-tail safety.
-  - [ ] Update `tests/chat/shared.test.ts` to assert the browser-facing contract expectation and restore-time sanitation behavior.
-  - [ ] Run `npm test`, `npm run lint`, and `npm run build`.
+- [x] Add focused regression coverage for server normalization and legacy restore safety (AC: 1, 2, 3, 4, 5)
+  - [x] Add `tests/chat/normalize.test.ts` for appendix stripping, explicit URL preference, orphan URL exclusion, and ambiguous-tail safety.
+  - [x] Update `tests/chat/shared.test.ts` to assert the browser-facing contract expectation and restore-time sanitation behavior.
+  - [x] Run `npm test`, `npm run lint`, and `npm run build`.
 
 ## Dev Notes
 
@@ -98,7 +98,7 @@ so that the browser can render and persist stable fields without parsing provide
 
 ### Agent Model Used
 
-_TBD by dev agent_
+`Codex GPT-5`
 
 ### Debug Log References
 
@@ -108,15 +108,18 @@ _TBD by dev agent_
 
 - Normalize raw notebook backend responses at the Next.js server boundary.
 - Preserve existing transport failure handling and legacy restore sanitation.
+- Added `lib/chat/normalize.ts` to detect structurally citation-shaped appendix tails, strip them from `answerBody`, preserve conversation metadata, and map URLs by citation number while preferring explicit reference URLs.
+- Switched `/api/chat` and the browser client to the normalized app-facing contract, keeping request shape `{ question }` and the backend-unavailable passthrough behavior intact.
+- Retained restore-time `stripCitationAppendix()` compatibility for older persisted assistant messages while moving live-response shaping off the client.
+- Added focused regression coverage for normalization edge cases and browser-facing answer formatting; verification passed with `npm test`, `npm run lint`, and `npm run build`.
 
 ### File List
 
 - `app/api/chat/route.ts`
-- `lib/chat/server.ts`
 - `lib/chat/normalize.ts`
 - `lib/chat/shared.ts`
 - `lib/chat/client.ts`
 - `components/pipeline/PipelinePageClient.tsx`
-- `hooks/useSessionPersistence.ts`
+- `lib/chat/demo-response.ts`
 - `tests/chat/normalize.test.ts`
 - `tests/chat/shared.test.ts`

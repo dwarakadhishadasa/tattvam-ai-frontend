@@ -77,18 +77,7 @@ export function isValidSessionIndexEntry(value: unknown): value is SessionIndexE
 }
 
 export function isValidPersistedSessionRecord(value: unknown): value is PersistedSessionRecord {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    typeof value.updatedAt === "number" &&
-    Number.isFinite(value.updatedAt) &&
-    typeof value.stateVersion === "number" &&
-    isValidSessionState(value.state)
-  )
+  return normalizePersistedSessionRecord(value) !== null
 }
 
 export function isValidVisualSettingRecord(value: unknown): value is PersistedVisualSettingRecord {
@@ -133,7 +122,7 @@ export function readLegacySessions(rawValue: string | null): LegacySessionParseR
     }
 
     const sessions = parsed.reduce<PersistedSessionRecord[]>((accumulator, candidate) => {
-      const session = normalizeLegacySession(candidate)
+      const session = normalizePersistedSessionRecord(candidate)
       if (session) {
         accumulator.push(session)
       }
@@ -269,9 +258,14 @@ function normalizeLegacySession(value: unknown): PersistedSessionRecord | null {
     typeof value.id !== "string" ||
     typeof value.title !== "string" ||
     typeof value.updatedAt !== "number" ||
-    !Number.isFinite(value.updatedAt) ||
-    !isValidSessionState(value.state)
+    !Number.isFinite(value.updatedAt)
   ) {
+    return null
+  }
+
+  const state = normalizeSessionState(value.state, value.updatedAt)
+
+  if (!state) {
     return null
   }
 
@@ -283,31 +277,81 @@ function normalizeLegacySession(value: unknown): PersistedSessionRecord | null {
       typeof value.stateVersion === "number" && Number.isFinite(value.stateVersion)
         ? value.stateVersion
         : PERSISTENCE_STATE_VERSION,
-    state: value.state,
+    state,
+  }
+}
+
+export function normalizePersistedSessionRecord(
+  value: unknown,
+): PersistedSessionRecord | null {
+  return normalizeLegacySession(value)
+}
+
+function normalizeSessionState(
+  value: unknown,
+  fallbackTimestamp = Date.now(),
+): SessionState | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const generatedNotebookId =
+    typeof value.generatedNotebookId === "string" ? value.generatedNotebookId : null
+  const activeStep = normalizePipelineStep(value.activeStep, generatedNotebookId)
+
+  if (
+    activeStep === null ||
+    !isTalkType(value.talkType) ||
+    !isValidVerseDetails(value.verseDetails) ||
+    typeof value.generalTopic !== "string" ||
+    typeof value.festivalName !== "string" ||
+    typeof value.yatraLocation !== "string" ||
+    (value.extractedVerseData !== null && !isValidVerseData(value.extractedVerseData)) ||
+    !Array.isArray(value.messages) ||
+    !value.messages.every(isValidMessage) ||
+    !Array.isArray(value.savedSnippets) ||
+    typeof value.notebookName !== "string" ||
+    typeof value.generatedSlides !== "string"
+  ) {
+    return null
+  }
+
+  const savedSnippets = value.savedSnippets.reduce<SessionState["savedSnippets"]>(
+    (accumulator, candidate) => {
+      const snippet = normalizeSavedSnippet(candidate, fallbackTimestamp)
+      if (snippet) {
+        accumulator.push(snippet)
+      }
+      return accumulator
+    },
+    [],
+  )
+
+  const activeNotebookEntryId =
+    typeof value.activeNotebookEntryId === "string" &&
+    savedSnippets.some((snippet) => snippet.id === value.activeNotebookEntryId)
+      ? value.activeNotebookEntryId
+      : null
+
+  return {
+    activeStep,
+    talkType: value.talkType,
+    verseDetails: value.verseDetails,
+    generalTopic: value.generalTopic,
+    festivalName: value.festivalName,
+    yatraLocation: value.yatraLocation,
+    extractedVerseData: value.extractedVerseData,
+    messages: value.messages,
+    savedSnippets,
+    notebookName: value.notebookName,
+    activeNotebookEntryId,
+    generatedNotebookId,
+    generatedSlides: value.generatedSlides,
   }
 }
 
 function isValidSessionState(value: unknown): value is SessionState {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    isPipelineStep(value.activeStep) &&
-    isTalkType(value.talkType) &&
-    isValidVerseDetails(value.verseDetails) &&
-    typeof value.generalTopic === "string" &&
-    typeof value.festivalName === "string" &&
-    typeof value.yatraLocation === "string" &&
-    (value.extractedVerseData === null || isValidVerseData(value.extractedVerseData)) &&
-    Array.isArray(value.messages) &&
-    value.messages.every(isValidMessage) &&
-    Array.isArray(value.savedSnippets) &&
-    value.savedSnippets.every(isValidSavedSnippet) &&
-    typeof value.notebookName === "string" &&
-    (typeof value.generatedNotebookId === "string" || value.generatedNotebookId === null) &&
-    typeof value.generatedSlides === "string"
-  )
+  return normalizeSessionState(value) !== null
 }
 
 function isValidMessage(value: unknown): value is Message {
@@ -324,11 +368,52 @@ function isValidMessage(value: unknown): value is Message {
 }
 
 function isValidSavedSnippet(value: unknown): value is SessionState["savedSnippets"][number] {
+  return normalizeSavedSnippet(value) !== null
+}
+
+function normalizeSavedSnippet(
+  value: unknown,
+  fallbackTimestamp = Date.now(),
+): SessionState["savedSnippets"][number] | null {
   if (!isRecord(value)) {
-    return false
+    return null
   }
 
-  return typeof value.id === "string" && typeof value.content === "string"
+  if (typeof value.id !== "string") {
+    return null
+  }
+
+  if (typeof value.sourceContent === "string" && typeof value.content === "string") {
+    return {
+      id: value.id,
+      sourceMessageId: typeof value.sourceMessageId === "string" ? value.sourceMessageId : null,
+      sourceType: isNotebookSourceType(value.sourceType) ? value.sourceType : "response",
+      sourceContent: value.sourceContent,
+      content: value.content,
+      isEdited:
+        typeof value.isEdited === "boolean"
+          ? value.isEdited
+          : value.content !== value.sourceContent,
+      updatedAt:
+        typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt)
+          ? value.updatedAt
+          : fallbackTimestamp,
+    }
+  }
+
+  if (typeof value.content !== "string") {
+    return null
+  }
+
+  return {
+    id: value.id,
+    sourceMessageId: null,
+    sourceType: "response",
+    sourceContent: value.content,
+    content: value.content,
+    isEdited: false,
+    updatedAt: fallbackTimestamp,
+  }
 }
 
 function isValidVerseData(value: unknown): value is VerseData {
@@ -353,8 +438,23 @@ function isValidVerseDetails(value: unknown): value is VerseDetails {
   return typeof value.book === "string" && typeof value.verse === "string"
 }
 
-function isPipelineStep(value: unknown): value is SessionState["activeStep"] {
-  return value === 0 || value === 1 || value === 2 || value === 3
+function normalizePipelineStep(
+  value: unknown,
+  generatedNotebookId: string | null,
+): SessionState["activeStep"] | null {
+  if (value === 0 || value === 1) {
+    return value
+  }
+
+  if (value === 2) {
+    return generatedNotebookId ? 2 : 1
+  }
+
+  if (value === 3) {
+    return 2
+  }
+
+  return null
 }
 
 function isTalkType(value: unknown): value is TalkType {
@@ -363,4 +463,10 @@ function isTalkType(value: unknown): value is TalkType {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
+}
+
+function isNotebookSourceType(
+  value: unknown,
+): value is SessionState["savedSnippets"][number]["sourceType"] {
+  return value === "response" || value === "citation" || value === "context"
 }

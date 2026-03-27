@@ -16,10 +16,10 @@ import {
   ContextStep,
   ExtractionStep,
   PresentationStep,
-  SynthesisStep,
 } from "@/components/pipeline/PipelineSteps"
 import type {
   Message,
+  NotebookEntrySaveInput,
   PipelineStep,
   SavedSnippet,
   SessionState,
@@ -27,21 +27,28 @@ import type {
   VerseData,
 } from "@/components/pipeline/types"
 import {
+  appendNotebookEntry,
+  buildNotebookCompileSource,
   buildLectureVerseData,
+  canCompileNotebook,
   countSnippetWords,
   createEmptySessionState,
   createInitialMessages,
   createSessionId,
   createSessionSnapshot,
+  getNotebookReadiness,
   getRequiredWordCount,
   hasMeaningfulSessionData,
+  removeNotebookEntry,
   splitSlides,
+  updateNotebookEntryContent,
 } from "@/components/pipeline/utils"
 import { useSessionPersistence } from "@/hooks/useSessionPersistence"
 import { ENVY_DEMO_RESPONSE } from "@/lib/chat/demo-response"
 import { askChatQuestion } from "@/lib/chat/client"
+import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import {
-  parseBackendChatResponse,
+  formatAssistantAnswer,
   stripCitationAppendix,
   type Citation,
 } from "@/lib/chat/shared"
@@ -49,6 +56,11 @@ import {
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), {
   ssr: false,
 })
+
+type ActiveCitationSelection = {
+  citation: Citation
+  sourceMessageId: string | null
+}
 
 export default function PipelinePageClient() {
   const [activeStep, setActiveStep] = useState<PipelineStep>(0)
@@ -69,9 +81,10 @@ export default function PipelinePageClient() {
   const [isChatting, setIsChatting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const slidesContainerRef = useRef<HTMLDivElement>(null)
-  const [activeCitation, setActiveCitation] = useState<Citation | null>(null)
+  const [activeCitation, setActiveCitation] = useState<ActiveCitationSelection | null>(null)
 
   const [notebookName, setNotebookName] = useState("")
+  const [activeNotebookEntryId, setActiveNotebookEntryId] = useState<string | null>(null)
   const [isGeneratingNotebook, setIsGeneratingNotebook] = useState(false)
   const [generatedNotebookId, setGeneratedNotebookId] = useState<string | null>(null)
   const [lectureDuration, setLectureDuration] = useState(DEFAULT_LECTURE_DURATION)
@@ -89,6 +102,11 @@ export default function PipelinePageClient() {
 
   const slides = useMemo(() => splitSlides(generatedSlides), [generatedSlides])
   const wordCount = useMemo(() => countSnippetWords(savedSnippets), [savedSnippets])
+  const canCompile = useMemo(() => canCompileNotebook(savedSnippets), [savedSnippets])
+  const notebookReadiness = useMemo(
+    () => getNotebookReadiness(savedSnippets, lectureDuration),
+    [savedSnippets, lectureDuration],
+  )
   const requiredWordCount = useMemo(
     () => getRequiredWordCount(lectureDuration),
     [lectureDuration],
@@ -106,6 +124,7 @@ export default function PipelinePageClient() {
       messages,
       savedSnippets,
       notebookName,
+      activeNotebookEntryId,
       generatedNotebookId,
       generatedSlides,
     }),
@@ -120,6 +139,7 @@ export default function PipelinePageClient() {
       messages,
       savedSnippets,
       notebookName,
+      activeNotebookEntryId,
       generatedNotebookId,
       generatedSlides,
     ],
@@ -145,6 +165,13 @@ export default function PipelinePageClient() {
     )
     setSavedSnippets(sessionState.savedSnippets)
     setNotebookName(sessionState.notebookName)
+    setActiveNotebookEntryId(
+      sessionState.savedSnippets.some(
+        (snippet) => snippet.id === sessionState.activeNotebookEntryId,
+      )
+        ? sessionState.activeNotebookEntryId
+        : null,
+    )
     setGeneratedNotebookId(sessionState.generatedNotebookId)
     setGeneratedSlides(sessionState.generatedSlides)
     setInputMessage("")
@@ -305,7 +332,7 @@ export default function PipelinePageClient() {
 
     try {
       if (newUserMessage.content.toLowerCase().includes("envy")) {
-        const parsedDemoResponse = parseBackendChatResponse(ENVY_DEMO_RESPONSE)
+        const parsedDemoResponse = normalizeDownstreamChatResponse(ENVY_DEMO_RESPONSE)
 
         if (parsedDemoResponse) {
           setMessages((previousMessages) => [
@@ -313,8 +340,8 @@ export default function PipelinePageClient() {
             {
               id: (Date.now() + 1).toString(),
               role: "assistant",
-              content: parsedDemoResponse.cleanAnswer,
-              citations: parsedDemoResponse.citations,
+              content: formatAssistantAnswer(parsedDemoResponse.result.answerBody),
+              citations: parsedDemoResponse.result.citations,
             },
           ])
           return
@@ -322,19 +349,14 @@ export default function PipelinePageClient() {
       }
 
       const response = await askChatQuestion(newUserMessage.content)
-      const parsedResponse = parseBackendChatResponse(response)
-
-      if (!parsedResponse) {
-        throw new Error("Malformed chat response")
-      }
 
       setMessages((previousMessages) => [
         ...previousMessages,
         {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: parsedResponse.cleanAnswer,
-          citations: parsedResponse.citations,
+          content: formatAssistantAnswer(response.result.answerBody),
+          citations: response.result.citations,
         },
       ])
     } catch (error) {
@@ -352,24 +374,23 @@ export default function PipelinePageClient() {
     }
   }
 
-  function handleSaveSnippet(content: string) {
-    setSavedSnippets((previousSnippets) => {
-      if (previousSnippets.some((snippet) => snippet.content === content)) {
-        return previousSnippets
-      }
-
-      return [...previousSnippets, { id: Date.now().toString(), content }]
-    })
+  function handleSaveSnippet(entry: NotebookEntrySaveInput) {
+    setSavedSnippets((previousSnippets) => appendNotebookEntry(previousSnippets, entry))
   }
 
   function handleRemoveSnippet(id: string) {
+    setSavedSnippets((previousSnippets) => removeNotebookEntry(previousSnippets, id))
+    setActiveNotebookEntryId((previousEntryId) => (previousEntryId === id ? null : previousEntryId))
+  }
+
+  function handleUpdateSnippet(id: string, content: string) {
     setSavedSnippets((previousSnippets) =>
-      previousSnippets.filter((snippet) => snippet.id !== id),
+      updateNotebookEntryContent(previousSnippets, id, content),
     )
   }
 
   async function handleGenerateNotebook() {
-    if (savedSnippets.length === 0) {
+    if (!canCompile) {
       return
     }
 
@@ -383,7 +404,8 @@ export default function PipelinePageClient() {
     window.setTimeout(() => {
       setGeneratedNotebookId(`nb_${Date.now()}`)
       setIsGeneratingNotebook(false)
-      setActiveStep(3)
+      setActiveNotebookEntryId(null)
+      setActiveStep(2)
     }, 2500)
   }
 
@@ -399,7 +421,7 @@ export default function PipelinePageClient() {
         method: "POST",
         body: JSON.stringify({
           style: extractedStyle,
-          content: savedSnippets.map((snippet) => snippet.content).join("\n\n"),
+          content: buildNotebookCompileSource(savedSnippets),
         }),
       })
 
@@ -465,7 +487,14 @@ export default function PipelinePageClient() {
               messages={messages}
               inputMessage={inputMessage}
               savedSnippets={savedSnippets}
+              activeNotebookEntryId={activeNotebookEntryId}
               isChatting={isChatting}
+              lectureDuration={lectureDuration}
+              wordCount={wordCount}
+              requiredWordCount={requiredWordCount}
+              canCompile={canCompile}
+              notebookReadiness={notebookReadiness}
+              isGeneratingNotebook={isGeneratingNotebook}
               messagesEndRef={messagesEndRef}
               onBackToContext={() => setActiveStep(0)}
               onOpenContext={() => setIsContextModalOpen(true)}
@@ -473,27 +502,15 @@ export default function PipelinePageClient() {
               onSendMessage={handleSendMessage}
               onSaveSnippet={handleSaveSnippet}
               onRemoveSnippet={handleRemoveSnippet}
-              onProceedToSynthesis={() => setActiveStep(2)}
+              onOpenNotebookEntry={setActiveNotebookEntryId}
+              onCloseNotebookEntry={() => setActiveNotebookEntryId(null)}
+              onUpdateNotebookEntry={handleUpdateSnippet}
+              onGenerateNotebook={handleGenerateNotebook}
               onSelectCitation={setActiveCitation}
             />
           )}
 
           {activeStep === 2 && (
-            <SynthesisStep
-              notebookName={notebookName}
-              savedSnippets={savedSnippets}
-              lectureDuration={lectureDuration}
-              wordCount={wordCount}
-              requiredWordCount={requiredWordCount}
-              isGeneratingNotebook={isGeneratingNotebook}
-              onNotebookNameChange={setNotebookName}
-              onRemoveSnippet={handleRemoveSnippet}
-              onBackToChat={() => setActiveStep(1)}
-              onGenerateNotebook={handleGenerateNotebook}
-            />
-          )}
-
-          {activeStep === 3 && (
             <PresentationStep
               notebookName={notebookName}
               extractedStyle={extractedStyle}
@@ -520,7 +537,7 @@ export default function PipelinePageClient() {
       />
 
       <CitationModal
-        citation={activeCitation}
+        citationSelection={activeCitation}
         onClose={() => setActiveCitation(null)}
         onSaveSnippet={handleSaveSnippet}
       />

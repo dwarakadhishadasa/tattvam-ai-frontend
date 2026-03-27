@@ -49,9 +49,6 @@ export function PipelineSidebar({
             isAccessible = hasExtractedContext
           }
           if (step.id === 2) {
-            isAccessible = savedSnippetCount > 0
-          }
-          if (step.id === 3) {
             isAccessible = hasGeneratedNotebook
           }
 

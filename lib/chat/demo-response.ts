@@ -1,6 +1,6 @@
-import type { BackendChatResponse } from "@/lib/chat/shared"
+import type { DownstreamChatResponse } from "@/lib/chat/normalize"
 
-export const ENVY_DEMO_RESPONSE: BackendChatResponse = {
+export const ENVY_DEMO_RESPONSE: DownstreamChatResponse = {
   ok: true,
   result: {
     answer:

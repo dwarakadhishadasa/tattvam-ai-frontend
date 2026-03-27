@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import { ChatBackendUnavailableError, forwardChatQuestion } from "@/lib/chat/server"
 
 export const runtime = "nodejs"
@@ -15,21 +16,32 @@ export async function POST(request: NextRequest) {
 
     const backendResponse = await forwardChatQuestion(question)
     const rawText = await backendResponse.text()
-    const data = rawText ? JSON.parse(rawText) : null
+    const data = rawText ? (JSON.parse(rawText) as unknown) : null
 
     if (!backendResponse.ok) {
+      const errorPayload =
+        typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {}
+
       return NextResponse.json(
         {
-          error:
-            data?.error ||
-            data?.detail ||
-            "Failed to fetch chat response from the notebook backend",
+          error: getErrorMessage(errorPayload),
         },
         { status: backendResponse.status },
       )
     }
 
-    return NextResponse.json(data)
+    const normalizedResponse = normalizeDownstreamChatResponse(
+      data as Parameters<typeof normalizeDownstreamChatResponse>[0],
+    )
+
+    if (!normalizedResponse) {
+      return NextResponse.json(
+        { error: "Malformed chat response from the notebook backend" },
+        { status: 502 },
+      )
+    }
+
+    return NextResponse.json(normalizedResponse)
   } catch (error) {
     if (error instanceof ChatBackendUnavailableError) {
       return NextResponse.json({ error: error.message }, { status: 502 })
@@ -38,4 +50,16 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Unexpected chat proxy failure"
     return NextResponse.json({ error: message }, { status: 500 })
   }
+}
+
+function getErrorMessage(data: Record<string, unknown>): string {
+  if (typeof data.error === "string" && data.error.trim()) {
+    return data.error
+  }
+
+  if (typeof data.detail === "string" && data.detail.trim()) {
+    return data.detail
+  }
+
+  return "Failed to fetch chat response from the notebook backend"
 }

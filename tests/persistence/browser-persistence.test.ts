@@ -31,6 +31,54 @@ describe("browser persistence schema", () => {
     expect(result.skippedCount).toBe(1)
   })
 
+  it("normalizes legacy string-only notebook entries during restore", () => {
+    const rawValue = JSON.stringify([
+      {
+        ...createSession("session-1", "Recovered Session", 100),
+        state: {
+          ...createState(),
+          savedSnippets: [{ id: "legacy-snippet", content: "Saved legacy content" }],
+        },
+      },
+    ])
+
+    const result = readLegacySessions(rawValue)
+    const snippet = result.sessions[0]?.state.savedSnippets[0]
+
+    expect(snippet).toEqual({
+      id: "legacy-snippet",
+      sourceMessageId: null,
+      sourceType: "response",
+      sourceContent: "Saved legacy content",
+      content: "Saved legacy content",
+      isEdited: false,
+      updatedAt: 100,
+    })
+  })
+
+  it("maps legacy synthesis and presentation steps into the new three-step flow", () => {
+    const synthesisSession = {
+      ...createSession("session-1", "Synthesis Session", 100),
+      state: {
+        ...createState(),
+        activeStep: 2,
+      },
+    }
+    const presentationSession = {
+      ...createSession("session-2", "Presentation Session", 200),
+      state: {
+        ...createState(),
+        activeStep: 3,
+        generatedNotebookId: "nb_200",
+      },
+    }
+
+    const result = readLegacySessions(JSON.stringify([synthesisSession, presentationSession]))
+
+    expect(result.sessions.find((session) => session.id === "session-1")?.state.activeStep).toBe(1)
+    expect(result.sessions.find((session) => session.id === "session-2")?.state.activeStep).toBe(2)
+  })
+
   it("prunes stale pointers and falls back to the next valid session", () => {
     const latestSession = createSession("latest", "Latest Session", 200)
     const olderSession = createSession("older", "Older Session", 100)
@@ -102,6 +150,7 @@ function createState(): SessionState {
     messages: [{ id: "1", role: "assistant", content: "welcome" }],
     savedSnippets: [],
     notebookName: "",
+    activeNotebookEntryId: null,
     generatedNotebookId: null,
     generatedSlides: "",
   }

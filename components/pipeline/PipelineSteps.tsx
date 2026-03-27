@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
-  FileText,
   Image as ImageIcon,
   LayoutTemplate,
   Loader2,
@@ -26,6 +25,8 @@ import { TALK_TYPE_OPTIONS } from "@/components/pipeline/constants"
 import { MessageMarkdown } from "@/components/pipeline/MessageMarkdown"
 import type {
   Message,
+  NotebookEntrySaveInput,
+  NotebookReadiness,
   SavedSnippet,
   TalkType,
   VerseData,
@@ -254,16 +255,29 @@ type ExtractionStepProps = {
   messages: Message[]
   inputMessage: string
   savedSnippets: SavedSnippet[]
+  activeNotebookEntryId: string | null
   isChatting: boolean
+  lectureDuration: number
+  wordCount: number
+  requiredWordCount: number
+  canCompile: boolean
+  notebookReadiness: NotebookReadiness
+  isGeneratingNotebook: boolean
   messagesEndRef: RefObject<HTMLDivElement | null>
   onBackToContext: () => void
   onOpenContext: () => void
   onInputMessageChange: (value: string) => void
   onSendMessage: () => void
-  onSaveSnippet: (content: string) => void
+  onSaveSnippet: (entry: NotebookEntrySaveInput) => void
   onRemoveSnippet: (id: string) => void
-  onProceedToSynthesis: () => void
-  onSelectCitation: (citation: NonNullable<Message["citations"]>[number]) => void
+  onOpenNotebookEntry: (id: string) => void
+  onCloseNotebookEntry: () => void
+  onUpdateNotebookEntry: (id: string, content: string) => void
+  onGenerateNotebook: () => void
+  onSelectCitation: (selection: {
+    citation: NonNullable<Message["citations"]>[number]
+    sourceMessageId: string | null
+  }) => void
 }
 
 export function ExtractionStep({
@@ -271,7 +285,14 @@ export function ExtractionStep({
   messages,
   inputMessage,
   savedSnippets,
+  activeNotebookEntryId,
   isChatting,
+  lectureDuration,
+  wordCount,
+  requiredWordCount,
+  canCompile,
+  notebookReadiness,
+  isGeneratingNotebook,
   messagesEndRef,
   onBackToContext,
   onOpenContext,
@@ -279,9 +300,16 @@ export function ExtractionStep({
   onSendMessage,
   onSaveSnippet,
   onRemoveSnippet,
-  onProceedToSynthesis,
+  onOpenNotebookEntry,
+  onCloseNotebookEntry,
+  onUpdateNotebookEntry,
+  onGenerateNotebook,
   onSelectCitation,
 }: ExtractionStepProps) {
+  const activeEntry =
+    savedSnippets.find((snippet) => snippet.id === activeNotebookEntryId) ?? null
+  const hasSufficientContent = notebookReadiness === "ready"
+
   return (
     <motion.div
       key="step1"
@@ -289,7 +317,7 @@ export function ExtractionStep({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="h-full flex"
+      className="relative h-full flex overflow-hidden"
     >
       <div className="flex-1 flex flex-col relative">
         <div className="bg-white border-b border-zinc-100 p-4 flex items-center justify-between shadow-sm z-20">
@@ -362,22 +390,33 @@ export function ExtractionStep({
                       <MessageMarkdown
                         content={message.content}
                         citations={message.citations}
-                        onCitationSelect={onSelectCitation}
+                        onCitationSelect={(citation) =>
+                          onSelectCitation({
+                            citation,
+                            sourceMessageId: message.id,
+                          })
+                        }
                       />
                     )}
                   </div>
 
                   {message.role === "assistant" && (
                     <div className="mt-6 flex items-center gap-3">
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => onSaveSnippet(message.content)}
-                          className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-zinc-900 bg-white border border-zinc-200 shadow-sm px-4 py-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          Save Full Response
-                        </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() =>
+                          onSaveSnippet({
+                            sourceMessageId: message.id,
+                            sourceType: "response",
+                            sourceContent: message.content,
+                          })
+                        }
+                        className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-zinc-900 bg-white border border-zinc-200 shadow-sm px-4 py-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        Save Full Response
+                      </motion.button>
                     </div>
                   )}
                 </div>
@@ -441,201 +480,196 @@ export function ExtractionStep({
         </div>
       </div>
 
-      <div className="w-80 bg-white border-l border-zinc-100 flex flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.01)] z-10">
-        <div className="p-6 border-b border-zinc-100">
-          <h2 className="font-semibold text-zinc-900">Knowledge Base</h2>
-          <p className="text-sm text-zinc-500 mt-1">Curated insights for your notebook</p>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 hide-scrollbar space-y-3 bg-zinc-50/50">
-          <AnimatePresence>
-            {savedSnippets.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center text-zinc-400 mt-10 text-sm px-4"
-              >
-                No insights saved yet. Ask a question and save useful responses.
-              </motion.div>
-            ) : (
-              savedSnippets.map((snippet) => (
-                <motion.div
-                  key={snippet.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95, height: 0, marginBottom: 0 }}
-                  className="bg-white border border-zinc-200 rounded-xl p-4 text-sm relative group shadow-sm"
-                >
-                  <div className="line-clamp-4 text-zinc-600 leading-relaxed">{snippet.content}</div>
-                  <button
-                    onClick={() => onRemoveSnippet(snippet.id)}
-                    className="absolute top-2 right-2 w-7 h-7 bg-white border border-zinc-200 text-zinc-400 hover:text-red-500 hover:border-red-200 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
-        </div>
-        <div className="p-6 bg-white border-t border-zinc-100">
-          <button
-            disabled={savedSnippets.length === 0}
-            onClick={onProceedToSynthesis}
-            className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white py-3 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:hover:bg-zinc-900 transition-colors"
+      <AnimatePresence>
+        {activeEntry && (
+          <motion.div
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 24 }}
+            transition={{ duration: 0.22 }}
+            className="absolute inset-y-6 right-[27rem] z-20 w-[28rem] rounded-[2rem] border border-zinc-200 bg-white/96 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.14)] backdrop-blur"
           >
-            Proceed to Synthesis
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-type SynthesisStepProps = {
-  notebookName: string
-  savedSnippets: SavedSnippet[]
-  lectureDuration: number
-  wordCount: number
-  requiredWordCount: number
-  isGeneratingNotebook: boolean
-  onNotebookNameChange: (value: string) => void
-  onRemoveSnippet: (id: string) => void
-  onBackToChat: () => void
-  onGenerateNotebook: () => void
-}
-
-export function SynthesisStep({
-  notebookName,
-  savedSnippets,
-  lectureDuration,
-  wordCount,
-  requiredWordCount,
-  isGeneratingNotebook,
-  onNotebookNameChange,
-  onRemoveSnippet,
-  onBackToChat,
-  onGenerateNotebook,
-}: SynthesisStepProps) {
-  const hasSufficientContent = wordCount >= requiredWordCount
-
-  return (
-    <motion.div
-      key="step2"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-      className="h-full flex items-center justify-center p-8 overflow-y-auto hide-scrollbar"
-    >
-      <div className="w-full max-w-2xl bg-white rounded-3xl border border-zinc-100 shadow-[0_8px_40px_rgba(0,0,0,0.04)] overflow-hidden">
-        <div className="p-10 text-center border-b border-zinc-100 bg-zinc-50/50">
-          <div className="w-16 h-16 bg-white border border-zinc-200 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
-            <BookOpen className="w-8 h-8 text-zinc-900" />
-          </div>
-          <h2 className="text-3xl font-bold text-zinc-900 tracking-tight mb-3">
-            Synthesize Notebook
-          </h2>
-          <p className="text-zinc-500 max-w-md mx-auto">
-            You&apos;ve curated <strong className="text-zinc-900">{savedSnippets.length} insights</strong>.
-            Give your new workspace a name to compile them into NotebookLM.
-          </p>
-        </div>
-
-        <div className="p-10 space-y-8">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-2">Workspace Name</label>
-            <input
-              type="text"
-              placeholder="e.g., Quantum Mechanics Synthesis"
-              value={notebookName}
-              onChange={(event) => onNotebookNameChange(event.target.value)}
-              className="w-full text-xl bg-zinc-50 border border-zinc-200 rounded-xl px-5 py-4 outline-none focus:border-zinc-400 focus:bg-white transition-colors placeholder:text-zinc-300"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-3">Content Preview</label>
-            <div className="h-48 overflow-y-auto hide-scrollbar border border-zinc-100 rounded-xl p-5 bg-zinc-50/50 space-y-4">
-              {savedSnippets.length === 0 ? (
-                <div className="text-center text-zinc-400 text-sm py-8">
-                  No insights saved yet. Go back to chat to add some.
+            <div className="flex h-full flex-col gap-4">
+              <div className="flex items-start justify-between gap-4 border-b border-zinc-100 pb-4">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-900">Notebook Editor</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">
+                    Entry {savedSnippets.findIndex((snippet) => snippet.id === activeEntry.id) + 1}
+                  </p>
                 </div>
-              ) : (
-                savedSnippets.map((snippet, index) => (
-                  <div
-                    key={snippet.id}
-                    className="group flex items-start justify-between text-sm text-zinc-500 pb-4 border-b border-zinc-100 last:border-0 last:pb-0"
-                  >
-                    <div className="flex-1 pr-4">
-                      <span className="font-semibold text-zinc-900 mr-2">Insight {index + 1}:</span>
-                      {snippet.content.substring(0, 120)}...
-                    </div>
-                    <button
-                      onClick={() => onRemoveSnippet(snippet.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all rounded-md hover:bg-red-50"
-                      title="Remove Insight"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                <button
+                  onClick={onCloseNotebookEntry}
+                  className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+                >
+                  Close
+                </button>
+              </div>
 
-          <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  hasSufficientContent ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
-                }`}
-              >
-                {hasSufficientContent ? (
-                  <CheckCircle2 className="w-5 h-5" />
-                ) : (
-                  <Clock className="w-5 h-5" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-zinc-900">
-                  {hasSufficientContent ? "Sufficient Content" : "More Content Recommended"}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  Target: {lectureDuration} mins (~{requiredWordCount} words)
-                </p>
-              </div>
+              <textarea
+                value={activeEntry.content}
+                onChange={(event) =>
+                  onUpdateNotebookEntry(activeEntry.id, event.target.value)
+                }
+                className="min-h-0 flex-1 resize-none rounded-[1.5rem] border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400 focus:bg-white"
+              />
             </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-zinc-900">{wordCount} words</p>
-              <p className="text-xs text-zinc-400">estimated</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="w-[26rem] bg-white border-l border-zinc-100 flex flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.01)] z-10">
+        <div className="p-6 border-b border-zinc-100">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-semibold text-zinc-900">Notebook Workspace</h2>
+              <p className="text-sm text-zinc-500 mt-1">
+                Review, trim, and compile your saved material.
+              </p>
+            </div>
+            <div className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+              {savedSnippets.length} saved
             </div>
           </div>
         </div>
+        <div className="flex-1 overflow-hidden bg-zinc-50/60 flex flex-col">
+          <div className="p-4 space-y-3 overflow-y-auto hide-scrollbar">
+            <AnimatePresence initial={false}>
+              {savedSnippets.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="rounded-2xl border border-dashed border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-400"
+                >
+                  No notebook entries yet. Save a response, citation, or context block to start
+                  building this workspace.
+                </motion.div>
+              ) : (
+                savedSnippets.map((snippet, index) => {
+                  const isActive = snippet.id === activeNotebookEntryId
+                  const label =
+                    snippet.sourceType === "response"
+                      ? "Response"
+                      : snippet.sourceType === "citation"
+                        ? "Citation"
+                        : "Context"
 
-        <div className="p-6 bg-zinc-50/50 border-t border-zinc-100 flex justify-between items-center">
-          <button
-            onClick={onBackToChat}
-            className="px-6 py-2.5 text-zinc-500 font-medium hover:text-zinc-900 transition-colors"
-          >
-            Back to Chat
-          </button>
-          <button
-            onClick={onGenerateNotebook}
-            disabled={savedSnippets.length === 0 || isGeneratingNotebook}
-            className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-3 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {isGeneratingNotebook ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Compiling Workspace...
-              </>
-            ) : (
-              <>
-                Compile Notebook <ArrowRight className="w-4 h-4" />
-              </>
+                  return (
+                    <motion.div
+                      key={snippet.id}
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.97, height: 0, marginBottom: 0 }}
+                      className={`rounded-2xl border p-4 shadow-sm transition-all ${
+                        isActive
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-200 bg-white hover:border-zinc-300"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          onClick={() => onOpenNotebookEntry(snippet.id)}
+                          className="flex-1 text-left"
+                        >
+                          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                            <span
+                              className={`rounded-full px-2 py-1 ${
+                                isActive
+                                  ? "bg-white/15 text-white"
+                                  : "bg-zinc-100 text-zinc-600"
+                              }`}
+                            >
+                              {label}
+                            </span>
+                            {snippet.isEdited && <span>Edited</span>}
+                          </div>
+                          <p className="mt-3 text-sm font-semibold">
+                            Entry {index + 1}
+                          </p>
+                          <p
+                            className={`mt-2 line-clamp-4 text-sm leading-relaxed ${
+                              isActive ? "text-zinc-100" : "text-zinc-600"
+                            }`}
+                          >
+                            {snippet.content}
+                          </p>
+                        </button>
+                        <button
+                          onClick={() => onRemoveSnippet(snippet.id)}
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                            isActive
+                              ? "border-white/20 text-white hover:bg-white/10"
+                              : "border-zinc-200 text-zinc-400 hover:border-red-200 hover:text-red-500"
+                          }`}
+                          title="Remove notebook entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )
+                })
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="border-t border-zinc-200 bg-white p-4 space-y-4">
+            {canCompile && (
+              <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                        hasSufficientContent
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {hasSufficientContent ? (
+                        <CheckCircle2 className="h-5 w-5" />
+                      ) : (
+                        <Clock className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900">
+                        {hasSufficientContent ? "Ready to Generate Slides" : "More Content Recommended"}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {wordCount} of ~{requiredWordCount} words for a {lectureDuration}-minute talk
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                      hasSufficientContent
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {notebookReadiness}
+                  </span>
+                </div>
+              </div>
             )}
-          </button>
+
+            <button
+              onClick={onGenerateNotebook}
+              disabled={!canCompile || isGeneratingNotebook}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isGeneratingNotebook ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating Slides...
+                </>
+              ) : (
+                <>
+                  Generate Slides
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

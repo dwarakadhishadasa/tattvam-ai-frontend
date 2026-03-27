@@ -1,6 +1,6 @@
-import type { BackendChatResponse } from "@/lib/chat/shared"
+import type { ChatRouteErrorResponse, ChatRouteSuccessResponse } from "@/lib/chat/shared"
 
-export async function askChatQuestion(question: string): Promise<BackendChatResponse> {
+export async function askChatQuestion(question: string): Promise<ChatRouteSuccessResponse> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: {
@@ -9,16 +9,16 @@ export async function askChatQuestion(question: string): Promise<BackendChatResp
     body: JSON.stringify({ question }),
   })
 
-  const data = (await response.json()) as BackendChatResponse & { detail?: unknown }
+  const data = (await response.json()) as ChatRouteSuccessResponse | ChatRouteErrorResponse
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(data))
+    throw new Error(getErrorMessage(data as ChatRouteErrorResponse))
   }
 
-  return data
+  return data as ChatRouteSuccessResponse
 }
 
-function getErrorMessage(data: BackendChatResponse & { detail?: unknown }): string {
+function getErrorMessage(data: ChatRouteErrorResponse): string {
   if (typeof data.error === "string" && data.error.trim()) {
     return data.error
   }
