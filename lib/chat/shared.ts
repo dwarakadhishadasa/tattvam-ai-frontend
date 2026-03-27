@@ -31,6 +31,14 @@ export type ParsedChatResponse = {
   citations: Citation[]
 }
 
+export function stripCitationAppendix(answer: string): string {
+  const citationSectionStart = findCitationSectionStart(answer)
+  const answerBody =
+    citationSectionStart !== -1 ? answer.substring(0, citationSectionStart).trimEnd() : answer.trim()
+
+  return answerBody.replace(/\n\s*(?:\*{3,}|-{3,}|_{3,})\s*$/u, "").trim()
+}
+
 export function parseBackendChatResponse(data: BackendChatResponse | null | undefined): ParsedChatResponse | null {
   if (!data?.ok || !data.result?.answer) {
     return null
@@ -39,8 +47,7 @@ export function parseBackendChatResponse(data: BackendChatResponse | null | unde
   const { answer, references = [] } = data.result
 
   const citationSectionStart = findCitationSectionStart(answer)
-  const cleanAnswer =
-    citationSectionStart !== -1 ? answer.substring(0, citationSectionStart).trim() : answer.trim()
+  const cleanAnswer = stripCitationAppendix(answer)
   const citationSearchText = citationSectionStart !== -1 ? answer.substring(citationSectionStart) : answer
   const { byNumber: urlMap, ordered: orderedUrls } = extractCitationUrls(citationSearchText)
 
@@ -96,9 +103,15 @@ export function parseBackendChatResponse(data: BackendChatResponse | null | unde
 function findCitationSectionStart(answer: string): number {
   const headingPatterns = [
     /^#{2,4}\s*Citations and Timestamped URLs\b/im,
+    /^#{2,4}\s*Citations and Timestamped Sources\b/im,
     /^#{2,4}\s*Cited YouTube URLs\b/im,
     /^#{2,4}\s*Cited Source URLs\b/im,
     /^#{2,4}\s*Citations?\b/im,
+    /^\*{1,2}\s*Citations and Timestamped URLs\s*:?\s*\*{1,2}/im,
+    /^\*{1,2}\s*Citations and Timestamped Sources\s*:?\s*\*{1,2}/im,
+    /^\*{1,2}\s*Cited YouTube URLs\s*:?\s*\*{1,2}/im,
+    /^\*{1,2}\s*Cited Source URLs\s*:?\s*\*{1,2}/im,
+    /^\*{1,2}\s*Citations?\s*:?\s*\*{1,2}/im,
   ]
 
   let bestIndex = -1

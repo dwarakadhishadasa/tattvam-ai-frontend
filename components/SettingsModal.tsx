@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  AlertTriangle,
   Clock,
   Image as ImageIcon,
   LayoutTemplate,
@@ -25,6 +26,8 @@ interface SettingsModalProps {
   setExtractedStyle: (style: string) => void
   lectureDuration: number
   setLectureDuration: (duration: number) => void
+  visualCacheMessage?: string | null
+  onClearVisualCache: () => Promise<void>
 }
 
 export default function SettingsModal({
@@ -36,6 +39,8 @@ export default function SettingsModal({
   setExtractedStyle,
   lectureDuration,
   setLectureDuration,
+  visualCacheMessage,
+  onClearVisualCache,
 }: SettingsModalProps) {
   const [isExtracting, setIsExtracting] = useState(false)
 
@@ -91,9 +96,10 @@ export default function SettingsModal({
     maxFiles: 1,
   })
 
-  const clearCache = () => {
+  const clearCache = async () => {
     setSlideImage(null)
     setExtractedStyle("")
+    await onClearVisualCache()
   }
 
   return (
@@ -230,12 +236,18 @@ export default function SettingsModal({
                     </div>
                   )}
                 </div>
+                {visualCacheMessage && (
+                  <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>{visualCacheMessage}</p>
+                  </div>
+                )}
               </section>
             </div>
 
             <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex justify-between items-center">
               <button
-                onClick={clearCache}
+                onClick={() => void clearCache()}
                 className="text-sm font-medium text-red-500 hover:text-red-600 transition-colors"
               >
                 Clear Visual Cache

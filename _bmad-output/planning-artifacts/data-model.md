@@ -1,4 +1,4 @@
-# Data Model: Tattvam AI Lecture Synthesis Workflow
+# Data Model: Tattvam AI Lecture Notebook Workflow
 
 **Feature**: [spec.md](./spec.md)  
 **Date**: 2026-03-26
@@ -9,13 +9,16 @@ The current implementation is a single-route state machine owned by `app/page.ts
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `activeStep` | `0 | 1 | 2 | 3` | Current workflow stage: context, extraction, synthesis, presentation |
+| `activeStep` | `0 | 1 | 2` | Current workflow stage: context, extraction workspace, presentation |
 | `currentSessionId` | `string` | Browser-local identifier for the active session snapshot |
 | `isSettingsOpen` | `boolean` | Controls the visual settings modal |
 | `isContextModalOpen` | `boolean` | Controls the reference/context modal |
 | `isHistoryOpen` | `boolean` | Controls the session-history modal |
 | `isFullscreen` | `boolean` | Tracks fullscreen presentation mode |
 | `currentSlideIndex` | `number` | Active slide during fullscreen presentation |
+| `activeNotebookEntryId` | `string | null` | Saved response currently open in the review/editor panel |
+| `canCompile` | `boolean` (derived) | True when at least one notebook entry exists |
+| `notebookReadiness` | `'insufficient' | 'ready'` (derived) | Advisory readiness based on content sufficiency |
 
 ## Entities
 
@@ -67,32 +70,43 @@ Represents a reviewable source excerpt linked to an assistant answer.
 | `text` | `string` | Saved or displayed cited excerpt |
 | `url` | `string` | Optional YouTube URL with timestamp |
 
-### 5. Saved Snippet
+### 5. Notebook Entry
 
-Represents notebook content curated by the user for synthesis.
+Represents notebook content curated from extraction for study, editing, and later
+presentation.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | `string` | Timestamp-derived identifier |
-| `content` | `string` | Full assistant response, cited excerpt, or saved context block |
+| `sourceMessageId` | `string | null` | Assistant message or citation source when available |
+| `sourceType` | `'response' | 'citation' | 'context'` | Origin of the saved content |
+| `sourceContent` | `string` | Immutable original content preserved for provenance |
+| `content` | `string` | Current editable working version used for compilation |
+| `isEdited` | `boolean` | Whether `content` differs from `sourceContent` |
+| `updatedAt` | `number` | Last notebook edit timestamp |
 
 **Validation rules**:
-- Snippets are deduplicated by exact `content` equality.
-- Users can remove snippets individually from extraction or synthesis views.
+- Notebook entries are deduplicated by exact `sourceContent` equality at initial save time.
+- Users can remove notebook entries individually from extraction.
+- Editing a notebook entry must not destroy `sourceContent`.
 
 ### 6. Notebook Workspace
 
-Represents the compiled synthesis result used to unlock presentation mode.
+Represents the editable notebook state and compile result used to unlock
+presentation mode.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `notebookName` | `string` | User-entered or defaulted display name |
+| `activeNotebookEntryId` | `string | null` | Currently focused entry in the review panel |
+| `canCompile` | `boolean` (derived) | True when `savedSnippets.length > 0` |
+| `notebookReadiness` | `'insufficient' | 'ready'` (derived) | Sufficiency signal shown to the user before compilation |
 | `generatedNotebookId` | `string | null` | Synthetic `nb_<timestamp>` identifier created after compilation |
 | `isGeneratingNotebook` | `boolean` | Loading state during simulated compile |
 
 **Business rules**:
 - If `notebookName` is blank during compile, it is replaced with `Untitled Workspace`.
-- Synthesis cannot start unless at least one snippet is saved.
+- Compilation cannot start unless at least one notebook entry is saved.
 
 ### 7. Visual Style Profile
 
@@ -134,7 +148,7 @@ Represents a browser-local saved session for history and resume.
 | `id` | `string` | Session identifier |
 | `title` | `string` | Derived title based on context or first meaningful content |
 | `updatedAt` | `number` | Epoch timestamp |
-| `state.activeStep` | `0 | 1 | 2 | 3` | Last saved stage |
+| `state.activeStep` | `0 | 1 | 2` | Last saved stage |
 | `state.talkType` | `TalkType` | Last selected talk type |
 | `state.verseDetails` | `{ book: string; verse: string }` | Last verse inputs |
 | `state.generalTopic` | `string` | Saved general topic |
@@ -142,8 +156,9 @@ Represents a browser-local saved session for history and resume.
 | `state.yatraLocation` | `string` | Saved yatra location |
 | `state.extractedVerseData` | `VerseData | null` | Saved normalized context |
 | `state.messages` | `Message[]` | Saved conversation |
-| `state.savedSnippets` | `SavedSnippet[]` | Saved notebook content |
+| `state.savedSnippets` | `NotebookEntry[]` | Saved notebook content and edits |
 | `state.notebookName` | `string` | Saved notebook label |
+| `state.activeNotebookEntryId` | `string | null` | Last notebook entry open for review |
 | `state.generatedNotebookId` | `string | null` | Saved compile result |
 | `state.generatedSlides` | `string` | Saved slide deck markdown |
 
@@ -152,9 +167,10 @@ Represents a browser-local saved session for history and resume.
 | Rule | Current Implementation |
 |------|------------------------|
 | Step 1 accessibility | Requires `extractedVerseData` |
-| Step 2 accessibility | Requires `savedSnippets.length > 0` |
-| Step 3 accessibility | Requires `generatedNotebookId` |
+| Step 2 accessibility | Requires `generatedNotebookId` |
+| Compile availability | `savedSnippets.length > 0` |
 | Content sufficiency threshold | `saved word count >= lectureDuration * 140` |
+| Compile source | Uses edited notebook `content`, not immutable `sourceContent` |
 | Welcome state | Messages initialize with one assistant welcome message |
 | Citation shortcut | Prompts containing `"envy"` return a canned citation-rich response |
 | Slide deck regeneration | Clearing `generatedSlides` returns the UI to pre-generation state |
@@ -166,15 +182,15 @@ Represents a browser-local saved session for history and resume.
 1. `activeStep = 0` and context is empty.
 2. User selects a talk type and fetches context.
 3. Successful context fetch sets `extractedVerseData` and moves to `activeStep = 1`.
-4. User chats, reviews citations, and saves snippets.
-5. When snippets exist, synthesis becomes available and `activeStep` can move to `2`.
-6. Compilation fabricates `generatedNotebookId` and advances to `activeStep = 3`.
+4. User chats, reviews citations, and saves notebook entries.
+5. Inside extraction, the user studies and edits notebook entries.
+6. Compilation fabricates `generatedNotebookId` and advances to `activeStep = 2`.
 7. Slide generation produces `generatedSlides`, enabling preview and fullscreen presentation.
 
 ### Adjacent transitions
 
 1. Saving or changing meaningful state updates the current session snapshot in
-   `tattvam_sessions`.
+   browser persistence.
 2. Loading a past session restores all saved state fields.
 3. Starting a new session resets workflow state but preserves cached slide settings
    unless the user clears visual cache.
@@ -182,7 +198,7 @@ Represents a browser-local saved session for history and resume.
 ## Out-of-Spec but Implemented Entities
 
 The following are present in the implementation even though the current business
-spec focuses mostly on extraction, synthesis, and presentation:
+spec focuses mostly on context setup, extraction workspace, and presentation:
 
 - context selection before extraction
 - browser-local session history and resume

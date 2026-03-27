@@ -1,4 +1,4 @@
-# Feature Specification: Tattvam AI Lecture Synthesis Workflow
+# Feature Specification: Tattvam AI Lecture Notebook Workflow
 
 **Feature Branch**: `001-short-name-tattvam`  
 **Created**: 2026-03-25  
@@ -11,11 +11,11 @@
 
 A presenter starts in a guided chat workspace, asks questions about lecture material, sends those questions to the configured notebook chat backend, reads structured assistant answers, reviews any linked source citations, and saves useful full responses or cited source excerpts into a working notebook of insights.
 
-**Why this priority**: This is the entry point to the product and the source of all content that powers synthesis and presentation.
+**Why this priority**: This is the entry point to the product and the source of all content that powers notebook preparation and presentation.
 
-**Independent Test**: Start from a fresh session, send one or more lecture questions, confirm assistant answers appear in the conversation, open at least one available citation, save either a full answer or a cited excerpt, and verify the saved insight appears in the knowledge base without relying on later workflow stages.
+**Independent Test**: Start from a fresh session, send one or more lecture questions, confirm assistant answers appear in the conversation, open at least one available citation, save either a full answer or a cited excerpt, and verify the saved response appears in the notebook workspace without relying on later workflow stages.
 
-**Verification Plan**: Run `npm run lint`, run `npm run build`, then manually confirm the seeded welcome message, prompt submission, assistant response rendering, citation link behavior, citation detail viewing, full-response saving, citation excerpt saving, duplicate-save prevention, snippet removal, and disabled progression when no insights are saved.
+**Verification Plan**: Run `npm run lint`, run `npm run build`, then manually confirm the seeded welcome message, prompt submission, assistant response rendering, citation link behavior, citation detail viewing, full-response saving, citation excerpt saving, duplicate-save prevention, notebook removal behavior, and disabled compilation when no responses are saved.
 
 **Acceptance Scenarios**:
 
@@ -27,21 +27,23 @@ A presenter starts in a guided chat workspace, asks questions about lecture mate
 
 ---
 
-### User Story 2 - Review notebook readiness and compile a workspace (Priority: P2)
+### User Story 2 - Study, refine, and prepare saved responses inside extraction (Priority: P2)
 
-After curating insights, the presenter reviews a synthesis screen that summarizes saved content, estimates whether it is sufficient for the intended lecture length, optionally names the workspace, and compiles the notebook for presentation preparation.
+While staying in the extraction workspace, the presenter studies saved responses in a dedicated notebook panel, edits them where needed, reviews content sufficiency against the intended lecture duration, optionally names the workspace, and compiles the notebook for presentation preparation.
 
-**Why this priority**: Users need confidence that their saved material is substantial enough before investing effort in slide generation, and they need a compiled workspace to unlock presentation mode.
+**Why this priority**: Users need a real working notebook, not a dump of saved responses. They should be able to study and refine material without leaving extraction, while still getting a clear readiness checkpoint before presentation.
 
-**Independent Test**: With saved insights already present, move to synthesis, review the content preview and sufficiency indicator, compile the workspace with and without manually naming it, and confirm the experience advances to presentation mode.
+**Independent Test**: With saved responses already present, remain in extraction, open a saved response in the notebook workspace, edit it, review the sufficiency indicator, compile the workspace with and without manually naming it, and confirm the experience advances to presentation mode.
 
-**Verification Plan**: Run `npm run lint`, run `npm run build`, then manually confirm step gating, workspace naming, automatic fallback naming, content preview, lecture-duration-based sufficiency feedback, loading feedback during compilation, and automatic handoff to the next step.
+**Verification Plan**: Run `npm run lint`, run `npm run build`, then manually confirm notebook-panel access from extraction, saved-response editing, source provenance, workspace naming, lecture-duration-based sufficiency feedback, loading feedback during compilation, and automatic handoff to presentation.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user has saved at least one insight, **When** they proceed to synthesis, **Then** they can review a preview of the saved content and see whether the content estimate appears sufficient for the selected lecture duration.
-2. **Given** the user has entered a workspace name, **When** they compile the notebook, **Then** the system shows a temporary in-progress state, creates a workspace identifier, and advances to presentation mode.
-3. **Given** the user leaves the workspace name blank, **When** they compile the notebook, **Then** the system assigns a default workspace name and still advances when compilation completes.
+1. **Given** the user has saved at least one response or excerpt, **When** they review the notebook workspace inside extraction, **Then** they can inspect saved content and see whether the content estimate appears sufficient for the selected lecture duration.
+2. **Given** the user opens a saved response for review, **When** they edit or trim it, **Then** the notebook preserves the refined version for later use without losing the original source content.
+3. **Given** the user needs to study their material, **When** they use the notebook workspace, **Then** they can review saved responses and continue chatting without leaving extraction.
+4. **Given** the user has entered a workspace name, **When** they compile the notebook from extraction, **Then** the system shows a temporary in-progress state, creates a workspace identifier, and advances to presentation mode.
+5. **Given** the user leaves the workspace name blank, **When** they compile the notebook, **Then** the system assigns a default workspace name and still advances when compilation completes.
 
 ---
 
@@ -69,8 +71,10 @@ The presenter configures lecture duration and visual style settings, optionally 
 - If the user submits an empty chat prompt, the app does not send a request or add a new message.
 - If the notebook chat backend is unavailable or returns a malformed payload, the app shows the existing chat failure fallback instead of appending a partial assistant response.
 - If the assistant request, style-analysis request, or slide-generation request fails, the app surfaces an error message instead of silently succeeding.
-- If the user removes all saved insights, progression into synthesis is blocked until at least one insight is saved again.
-- If the saved insights appear too short for the selected lecture duration, the app warns that more content is recommended rather than blocking compilation outright.
+- If the user removes all saved responses, notebook compilation remains unavailable until at least one response is saved again.
+- If the saved responses appear too short for the selected lecture duration, the app warns that more content is recommended rather than blocking compilation outright.
+- If the user edits a saved response, the app preserves access to the original source content so study and trust are not lost.
+- If the user returns to a session with notebook edits in progress, the app restores the saved notebook state rather than discarding those refinements.
 - If the user reaches presentation mode without style guidance, the app shows a warning and does not produce a slide deck until guidance is available.
 - If a citation does not include a usable media link, the citation detail view still shows the cited excerpt without embedded media.
 - If the user exits fullscreen presentation, slide navigation resets to the first generated slide for the next fullscreen session.
@@ -78,45 +82,47 @@ The presenter configures lecture duration and visual style settings, optionally 
 
 ## Constitution Alignment *(mandatory)*
 
-- **Route Surface Impact**: The current user-facing workflow still lives on a single route and is documented as one continuous three-step experience. Any future implementation derived from this spec should preserve that unified journey while reducing concentration in the route layer rather than expanding it.
+- **Route Surface Impact**: The current user-facing workflow still lives on a single route and is documented as one continuous guided journey. Any future implementation derived from this spec should preserve that unified flow while reducing concentration in the route layer rather than expanding it.
 - **Client Boundary Plan**: The documented experience depends on browser-managed conversation state, local persistence, file upload, media embeds, modal interactions, and fullscreen behavior. Backend chat access, lecture-context generation, style extraction, and slide generation should be mediated through server-side routes or adapters so the client remains focused on interaction state rather than external service wiring.
-- **Module Boundary Plan**: This specification assumes distinct product responsibilities for chat exploration, citation review, notebook synthesis, style configuration, and slide presentation. Any follow-on implementation should express those responsibilities as separate feature modules rather than further centralizing them.
+- **Module Boundary Plan**: This specification assumes distinct product responsibilities for chat exploration, citation review, notebook study/editing, compile readiness, style configuration, and slide presentation. Any follow-on implementation should express those responsibilities as separate feature modules rather than further centralizing them.
 - **Shared UI Reuse Plan**: Existing shared controls for buttons, inputs, text areas, cards, and scrollable panels should be reused where they support the documented workflow, with product-specific styling layered on top only when needed.
 - **Library Version Alignment**: No dependency change is required to describe the current behavior. Any later implementation work should stay aligned with the dependency versions already declared in the repository unless an upgrade is explicitly planned and validated.
-- **Verification Strategy**: Minimum verification remains `npm run lint`, `npm run build`, and manual walkthroughs covering the three user stories, cached settings recovery, duplicate insight handling, citation flows, warning states, fullscreen presentation, and deck preview behavior.
+- **Verification Strategy**: Minimum verification remains `npm run lint`, `npm run build`, and manual walkthroughs covering the three user stories, cached settings recovery, duplicate-save handling, notebook editing flows, citation provenance, warning states, fullscreen presentation, and deck preview behavior.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST present the workflow as three connected stages: extraction, synthesis, and presentation.
+- **FR-001**: The system MUST present the workflow as three connected stages: context setup, extraction workspace, and presentation.
 - **FR-002**: The system MUST begin the extraction stage with a welcome message and allow users to submit freeform questions about lecture material.
 - **FR-002A**: The system MUST send extraction chat questions through a backend-owned notebook chat interface instead of calling the chat model directly from the browser.
 - **FR-002B**: The system MUST send only the user's trimmed extraction input as the backend `question` value and MUST NOT prepend or append locally assembled lecture context to that field.
 - **FR-003**: The system MUST append assistant responses to the conversation and present them in a readable rich-text format suitable for structured answers.
 - **FR-004**: The system MUST render source references in assistant responses so users can inspect cited material when references are available.
 - **FR-005**: The system MUST provide a citation detail view that shows the cited excerpt and, when available, a linked media source for that citation.
-- **FR-006**: The system MUST allow users to save assistant responses into a notebook of insights and remove saved insights individually.
-- **FR-007**: The system MUST allow users to save a cited excerpt from the citation detail view into the notebook of insights.
-- **FR-008**: The system MUST prevent duplicate notebook entries when the user attempts to save the same insight content more than once.
-- **FR-009**: The system MUST show the current count of saved insights and keep synthesis unavailable until at least one insight has been saved.
-- **FR-010**: The system MUST provide a synthesis screen where users can preview the saved insights and optionally name the workspace before compiling.
-- **FR-011**: The system MUST estimate content sufficiency against the selected lecture duration and communicate whether the current notebook appears sufficient or whether more content is recommended.
-- **FR-012**: The system MUST assign a default workspace name when the user compiles without entering one.
-- **FR-013**: The system MUST create a notebook workspace identifier during compilation and advance the user to presentation mode when compilation completes.
-- **FR-014**: The system MUST provide a visual settings surface where users can set lecture duration, upload one reference slide, review the uploaded slide, edit the resulting style prompt, re-run style extraction, and clear cached style assets.
-- **FR-015**: The system MUST automatically extract a reusable style description after a new reference slide is uploaded.
-- **FR-015A**: The system MUST perform reference-slide style extraction through a server-owned route or adapter rather than importing the model SDK directly into the browser.
-- **FR-016**: The system MUST persist lecture duration, reference slide, and style prompt in the user’s browser so those settings can be restored in a later session on the same device.
-- **FR-017**: The system MUST warn the user in presentation mode when no visual style guidance is available for slide generation.
-- **FR-018**: The system MUST generate a markdown-based slide deck from the compiled notebook content and the chosen style guidance.
-- **FR-018A**: The system MUST perform slide generation through a server-owned route or adapter rather than calling the model SDK directly from the browser.
-- **FR-019**: The system MUST split generated deck content into individual slide previews using explicit slide separators and render each slide as its own preview card.
-- **FR-020**: The system MUST let the user discard the current generated deck and request a fresh generation.
-- **FR-021**: The system MUST provide a fullscreen presentation mode for generated decks that displays one slide at a time and indicates the current slide position.
-- **FR-022**: The system MUST allow keyboard-based slide navigation while fullscreen presentation mode is active.
-- **FR-023**: The system MUST show an export affordance for presentation output even though the current codebase does not yet produce an actual presentation file.
-- **FR-024**: The system MUST show an explicit fallback message whenever backend chat, style extraction, or slide generation cannot be completed successfully.
+- **FR-006**: The system MUST allow users to save assistant responses into a notebook workspace and remove saved responses individually.
+- **FR-007**: The system MUST allow users to save a cited excerpt from the citation detail view into the notebook workspace.
+- **FR-008**: The system MUST prevent duplicate notebook entries when the user attempts to save the same response content more than once.
+- **FR-009**: The system MUST show the current count of saved notebook entries and keep notebook compilation unavailable until at least one response has been saved.
+- **FR-010**: The system MUST provide a persistent notebook workspace inside extraction where users can preview, study, and prepare saved responses without navigating to a separate synthesis step.
+- **FR-011**: The system MUST distinguish between `canCompile` and notebook readiness, where compilation is allowed once at least one response is saved and readiness remains an advisory signal based on content sufficiency.
+- **FR-012**: The system MUST estimate content sufficiency against the selected lecture duration and communicate whether the current notebook appears sufficient or whether more content is recommended.
+- **FR-013**: The system MUST allow users to edit saved notebook entries, including trimming or revising the saved version, while preserving the original source content for provenance.
+- **FR-014**: The system MUST allow users to optionally name the workspace before compilation and assign a default workspace name when left blank.
+- **FR-015**: The system MUST create a notebook workspace identifier during compilation and advance the user to presentation mode when compilation completes.
+- **FR-016**: The system MUST provide a visual settings surface where users can set lecture duration, upload one reference slide, review the uploaded slide, edit the resulting style prompt, re-run style extraction, and clear cached style assets.
+- **FR-017**: The system MUST automatically extract a reusable style description after a new reference slide is uploaded.
+- **FR-017A**: The system MUST perform reference-slide style extraction through a server-owned route or adapter rather than importing the model SDK directly into the browser.
+- **FR-018**: The system MUST persist lecture duration, reference slide, style prompt, and notebook edits in the user’s browser so those settings and refinements can be restored in a later session on the same device.
+- **FR-019**: The system MUST warn the user in presentation mode when no visual style guidance is available for slide generation.
+- **FR-020**: The system MUST generate a markdown-based slide deck from the compiled notebook content and the chosen style guidance.
+- **FR-020A**: The system MUST perform slide generation through a server-owned route or adapter rather than calling the model SDK directly from the browser.
+- **FR-021**: The system MUST split generated deck content into individual slide previews using explicit slide separators and render each slide as its own preview card.
+- **FR-022**: The system MUST let the user discard the current generated deck and request a fresh generation.
+- **FR-023**: The system MUST provide a fullscreen presentation mode for generated decks that displays one slide at a time and indicates the current slide position.
+- **FR-024**: The system MUST allow keyboard-based slide navigation while fullscreen presentation mode is active.
+- **FR-025**: The system MUST show an export affordance for presentation output even though the current codebase does not yet produce an actual presentation file.
+- **FR-026**: The system MUST show an explicit fallback message whenever backend chat, notebook compilation, style extraction, or slide generation cannot be completed successfully.
 
 ### Readability and Boundary Requirements
 
@@ -130,8 +136,8 @@ The presenter configures lecture duration and visual style settings, optionally 
 
 - **Conversation Message**: A single user or assistant exchange shown in the extraction workspace, including sender role, message content, and any available source references.
 - **Citation Reference**: A numbered source excerpt associated with an assistant response that can be opened for detail review and, when available, media playback.
-- **Saved Insight**: A curated full response or cited excerpt stored in the notebook for later synthesis and presentation.
-- **Notebook Workspace**: The named synthesis result that represents the compiled set of saved insights and unlocks presentation generation.
+- **Notebook Entry**: A curated full response or cited excerpt stored in the notebook, with support for study and editing before presentation.
+- **Notebook Workspace**: The named working set of notebook entries that supports review, readiness checks, compilation, and later presentation generation.
 - **Visual Style Profile**: The lecture duration setting, optional reference slide, and editable style prompt that guide presentation generation.
 - **Generated Slide Deck**: A markdown deck composed of multiple slides that can be reviewed as preview cards or presented fullscreen.
 
@@ -139,12 +145,13 @@ The presenter configures lecture duration and visual style settings, optionally 
 
 ### Measurable Outcomes
 
-- **SC-001**: A new user can ask a lecture question, save at least one insight, and reach the synthesis step in under 5 minutes without external guidance.
+- **SC-001**: A new user can ask a lecture question, save at least one response, and reach a usable notebook workspace inside extraction in under 5 minutes without external guidance.
 - **SC-002**: A user can open a cited source, save a relevant excerpt, and see it added to the notebook in under 30 seconds from opening the citation.
-- **SC-003**: After the user starts notebook compilation, the app advances from synthesis to presentation within 3 seconds whether the workspace name was entered manually or defaulted automatically.
-- **SC-004**: When a compiled notebook and style guidance are available, the app produces a preview containing at least 3 separately rendered slides from one generation request.
-- **SC-005**: A user with a generated deck can enter fullscreen presentation mode and navigate through slides without leaving the app.
-- **SC-006**: Returning users on the same browser recover their saved lecture duration and visual style settings on the next visit without manual re-entry.
+- **SC-003**: A user can open a saved notebook entry, make a meaningful edit, and return to the chat without losing their place in under 45 seconds.
+- **SC-004**: After the user starts notebook compilation, the app advances from extraction to presentation within 3 seconds whether the workspace name was entered manually or defaulted automatically.
+- **SC-005**: When a compiled notebook and style guidance are available, the app produces a preview containing at least 3 separately rendered slides from one generation request.
+- **SC-006**: A user with a generated deck can enter fullscreen presentation mode and navigate through slides without leaving the app.
+- **SC-007**: Returning users on the same browser recover their saved lecture duration, visual style settings, and notebook refinements on the next visit without manual re-entry.
 
 ## Assumptions
 

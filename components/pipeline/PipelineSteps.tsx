@@ -368,35 +368,7 @@ export function ExtractionStep({
                   </div>
 
                   {message.role === "assistant" && (
-                    <div className="space-y-6">
-                      {message.citations && message.citations.length > 0 && (
-                        <div className="mt-8 space-y-3 border-t border-zinc-100 pt-6">
-                          <div className="flex items-center gap-2 text-zinc-900 font-bold text-sm tracking-tight mb-4">
-                            <BookOpen className="w-4 h-4 text-zinc-400" />
-                            References
-                          </div>
-                          <div className="space-y-2">
-                            {message.citations.map((citation) => (
-                              <div
-                                key={citation.number}
-                                onClick={() => onSelectCitation(citation)}
-                                className="flex gap-3 text-sm group/ref cursor-pointer hover:bg-zinc-50 p-2 rounded-lg transition-colors"
-                              >
-                                <span className="text-zinc-400 font-mono shrink-0 mt-0.5">
-                                  [{citation.number}]
-                                </span>
-                                <div className="flex-1">
-                                  <p className="text-zinc-600 line-clamp-2 group-hover/ref:line-clamp-none transition-all">
-                                    &quot;{citation.text}&quot;
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3">
+                    <div className="mt-6 flex items-center gap-3">
                         <motion.button
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
@@ -406,7 +378,6 @@ export function ExtractionStep({
                           <Save className="w-3.5 h-3.5" />
                           Save Full Response
                         </motion.button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -733,8 +704,8 @@ export function PresentationStep({
 
             <button
               onClick={onGenerateSlides}
-              disabled={isGeneratingSlides}
-              className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-4 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 transition-all shadow-md"
+              disabled={isGeneratingSlides || !extractedStyle}
+              className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-4 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
             >
               {isGeneratingSlides ? (
                 <>

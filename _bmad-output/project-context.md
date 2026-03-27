@@ -64,6 +64,12 @@ Implementation MUST follow the APIs, behavioral expectations, and recommended pa
 
 Rationale: mixing multiple library eras in one codebase obscures the supported programming model, makes upgrades harder, and increases regression risk.
 
+#### VII. Shape Raw Backend Payloads at Server Boundaries
+
+Any change to raw backend payloads MUST be performed at the smallest server-owned boundary, typically a Next.js route handler or a server adapter in `lib/`, before client components consume or persist that data. Route handlers and server adapters are the approved place to rename, split, merge, redact, enrich, validate, normalize, and version backend response fields when upstream payloads are unstable, provider-specific, over-broad, or not yet aligned with the app's UI and persistence model. Client code MUST prefer explicit application fields and MUST NOT treat raw backend payloads as the primary contract when a server boundary can shape them first.
+
+Rationale: server-owned payload shaping localizes upstream churn, keeps browser state deterministic, prevents persistence drift, and avoids spreading backend-specific parsing rules across JSX, hooks, and restore paths.
+
 ### UI Composition and Styling Standards
 
 Use existing `components/ui` primitives and the established `cn` + `class-variance-authority` pattern before introducing new raw interaction patterns. Product-specific surfaces belong in feature modules under `components/`, not inside generic primitives. Repeated class lists, wrappers, and interaction treatments MUST be extracted instead of copied across files. Tailwind class lists SHOULD remain readable and stable, and all new UI MUST preserve semantic HTML, keyboard access, visible focus states, and reduced-motion awareness where motion is substantial.
@@ -79,7 +85,7 @@ Use existing `components/ui` primitives and the established `cn` + `class-varian
 
 ### Review and Delivery Standards
 
-Specs, plans, and task lists MUST call out route-file impact, client-boundary decisions, extracted module boundaries, shared UI reuse, and the verification strategy before implementation starts. Reviewers MUST block changes that add route bloat, hide domain logic inside JSX, spread vendor logic across UI files, introduce unjustified client boundaries, or omit verification steps. Exceptions MUST be rare, explicit in the change itself, and justified in the relevant spec, plan, or review thread with the simpler alternative that was rejected.
+Specs, plans, and task lists MUST call out route-file impact, client-boundary decisions, extracted module boundaries, shared UI reuse, and the verification strategy before implementation starts. Reviewers MUST block changes that add route bloat, hide domain logic inside JSX, spread vendor logic across UI files, introduce unjustified client boundaries, expose raw backend-shaped payloads to client rendering when a route or server adapter can shape them first, or omit verification steps. Exceptions MUST be rare, explicit in the change itself, and justified in the relevant spec, plan, or review thread with the simpler alternative that was rejected.
 
 ### Governance
 

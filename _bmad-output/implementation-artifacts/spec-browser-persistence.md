@@ -2,7 +2,7 @@
 title: 'Browser Persistence Split and Migration'
 type: 'feature'
 created: '2026-03-27'
-status: 'ready-for-dev'
+status: 'done'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/architecture.md'
@@ -52,14 +52,14 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `components/pipeline/types.ts` -- add shared types for session index entries, persisted session records, visual settings, migration outcomes, and recovery notices -- gives the hook and adapters one contract
-- [ ] `lib/persistence/schema.ts` -- define the persistence version, validators, and legacy readers for `tattvam_sessions`, `slide_style_cache`, and `slide_image_cache` -- centralizes defensive parsing
-- [ ] `lib/persistence/localSessionIndex.ts` -- implement guarded helpers for lecture duration, active session id, lightweight index writes, and stale-entry pruning -- keeps bootstrap metadata tiny
-- [ ] `lib/persistence/indexedDbStore.ts` -- implement database open/upgrade logic plus session/settings CRUD helpers that return typed results -- moves large payloads into structured browser storage
-- [ ] `hooks/useSessionPersistence.ts` -- orchestrate restore, migration, meaningful-state autosave, active-session switching, new-session reset, clear-visual-cache persistence, and degraded-mode warnings -- extracts storage logic out of the page shell
-- [ ] `components/pipeline/PipelinePageClient.tsx` -- hydrate state from the persistence hook, keep history driven by the lightweight index, and wire recovery notices -- satisfies the route-thinning requirement
-- [ ] `components/pipeline/PipelineModals.tsx` and `components/SettingsModal.tsx` -- surface stale-session, missing-style, and clear-cache behaviors using the new persistence results -- makes degraded states explicit
-- [ ] `tests/persistence/browser-persistence.test.ts` -- cover validator, migration, and stale-pointer edge cases if a lightweight harness is introduced in scope -- protects the brittle logic
+- [x] `components/pipeline/types.ts` -- add shared types for session index entries, persisted session records, visual settings, migration outcomes, and recovery notices -- gives the hook and adapters one contract
+- [x] `lib/persistence/schema.ts` -- define the persistence version, validators, and legacy readers for `tattvam_sessions`, `slide_style_cache`, and `slide_image_cache` -- centralizes defensive parsing
+- [x] `lib/persistence/localSessionIndex.ts` -- implement guarded helpers for lecture duration, active session id, lightweight index writes, and stale-entry pruning -- keeps bootstrap metadata tiny
+- [x] `lib/persistence/indexedDbStore.ts` -- implement database open/upgrade logic plus session/settings CRUD helpers that return typed results -- moves large payloads into structured browser storage
+- [x] `hooks/useSessionPersistence.ts` -- orchestrate restore, migration, meaningful-state autosave, active-session switching, new-session reset, clear-visual-cache persistence, and degraded-mode warnings -- extracts storage logic out of the page shell
+- [x] `components/pipeline/PipelinePageClient.tsx` -- hydrate state from the persistence hook, keep history driven by the lightweight index, and wire recovery notices -- satisfies the route-thinning requirement
+- [x] `components/pipeline/PipelineModals.tsx` and `components/SettingsModal.tsx` -- surface stale-session, missing-style, and clear-cache behaviors using the new persistence results -- makes degraded states explicit
+- [x] `tests/persistence/browser-persistence.test.ts` -- cover validator, migration, and stale-pointer edge cases if a lightweight harness is introduced in scope -- protects the brittle logic
 
 **Acceptance Criteria:**
 - Given legacy persistence keys exist, when the pipeline boots after this change, then valid legacy sessions and visual settings migrate into IndexedDB, the lightweight index is published, and unusable entries do not crash the page.
@@ -87,3 +87,40 @@ Restore and migration must finish before autosave becomes authoritative, or the 
 - Start a fresh session with no meaningful activity, reload, and confirm no empty draft appears in history
 - Save a real session, reload, and confirm history boots from the lightweight index while the full session body restores from IndexedDB
 - Clear visual cache and confirm only style/image settings are removed while lecture duration and session history remain available
+
+## Dev Agent Record
+
+### Implemented
+
+- Added a versioned browser persistence contract with typed session index, IndexedDB session/settings records, migration outcomes, and recovery notices.
+- Implemented defensive legacy parsing plus bootstrap helpers for `lecture_duration_cache`, `tattvam_active_session_id`, and `tattvam_session_index`.
+- Added IndexedDB storage helpers for `sessions` and `settings`, then moved restore, migration, autosave, stale-pointer recovery, and degraded-mode handling into `hooks/useSessionPersistence.ts`.
+- Updated the pipeline UI so the page shell consumes the hook, history renders from the lightweight index, recovery messaging is visible, and slide generation stays blocked when style data is missing.
+- Added a minimal `vitest` harness and persistence tests for legacy parsing, stale-pointer pruning, and local bootstrap helpers.
+
+### Tests
+
+- `npm test`
+- `npm run lint`
+- `npm run build`
+
+### Decisions
+
+- Used native IndexedDB instead of introducing a third-party storage library to stay within the approved contract.
+- Kept degraded-mode fallback read-only for recovered legacy sessions when IndexedDB is unavailable, while still preserving lecture duration and visual-cache recovery messaging.
+- Disabled slide generation when no extracted style is available so style-dependent presentation actions fail explicitly instead of silently.
+
+## File List
+
+- `components/pipeline/types.ts`
+- `components/pipeline/PipelinePageClient.tsx`
+- `components/pipeline/PipelineModals.tsx`
+- `components/pipeline/PipelineSteps.tsx`
+- `components/SettingsModal.tsx`
+- `hooks/useSessionPersistence.ts`
+- `lib/persistence/schema.ts`
+- `lib/persistence/localSessionIndex.ts`
+- `lib/persistence/indexedDbStore.ts`
+- `tests/persistence/browser-persistence.test.ts`
+- `package.json`
+- `package-lock.json`

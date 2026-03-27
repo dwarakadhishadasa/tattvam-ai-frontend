@@ -1,11 +1,16 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 
 import { DEFAULT_LECTURE_DURATION, INITIAL_VERSE_DETAILS } from "@/components/pipeline/constants"
-import { ContextReferenceModal, CitationModal, HistoryModal } from "@/components/pipeline/PipelineModals"
+import {
+  ContextReferenceModal,
+  CitationModal,
+  HistoryModal,
+  RecoveryNoticeStack,
+} from "@/components/pipeline/PipelineModals"
 import { PipelineSidebar } from "@/components/pipeline/PipelineSidebar"
 import {
   ContextStep,
@@ -17,7 +22,6 @@ import type {
   Message,
   PipelineStep,
   SavedSnippet,
-  Session,
   SessionState,
   TalkType,
   VerseData,
@@ -31,13 +35,16 @@ import {
   createSessionSnapshot,
   getRequiredWordCount,
   hasMeaningfulSessionData,
-  readStoredSessions,
   splitSlides,
-  upsertSession,
 } from "@/components/pipeline/utils"
+import { useSessionPersistence } from "@/hooks/useSessionPersistence"
 import { ENVY_DEMO_RESPONSE } from "@/lib/chat/demo-response"
 import { askChatQuestion } from "@/lib/chat/client"
-import { parseBackendChatResponse, type Citation } from "@/lib/chat/shared"
+import {
+  parseBackendChatResponse,
+  stripCitationAppendix,
+  type Citation,
+} from "@/lib/chat/shared"
 
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), {
   ssr: false,
@@ -78,8 +85,6 @@ export default function PipelinePageClient() {
 
   const [isContextModalOpen, setIsContextModalOpen] = useState(false)
 
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [currentSessionId, setCurrentSessionId] = useState("")
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
   const slides = useMemo(() => splitSlides(generatedSlides), [generatedSlides])
@@ -120,56 +125,65 @@ export default function PipelinePageClient() {
     ],
   )
 
-  useEffect(() => {
-    const cachedImage = localStorage.getItem("slide_image_cache")
-    const cachedStyle = localStorage.getItem("slide_style_cache")
-    const cachedDuration = localStorage.getItem("lecture_duration_cache")
-    const savedSessions = localStorage.getItem("tattvam_sessions")
-
-    if (cachedImage) {
-      setSlideImage(cachedImage)
-    }
-    if (cachedStyle) {
-      setExtractedStyle(cachedStyle)
-    }
-    if (cachedDuration) {
-      setLectureDuration(Number(cachedDuration))
-    }
-
-    setSessions(readStoredSessions(savedSessions))
-    setCurrentSessionId(createSessionId())
+  const applySessionState = useCallback((sessionState: SessionState) => {
+    setActiveStep(sessionState.activeStep)
+    setTalkType(sessionState.talkType)
+    setVerseDetails(sessionState.verseDetails)
+    setGeneralTopic(sessionState.generalTopic)
+    setFestivalName(sessionState.festivalName)
+    setYatraLocation(sessionState.yatraLocation)
+    setExtractedVerseData(sessionState.extractedVerseData)
+    setMessages(
+      sessionState.messages.map((message) =>
+        message.role === "assistant"
+          ? {
+              ...message,
+              content: stripCitationAppendix(message.content),
+            }
+          : message,
+      ),
+    )
+    setSavedSnippets(sessionState.savedSnippets)
+    setNotebookName(sessionState.notebookName)
+    setGeneratedNotebookId(sessionState.generatedNotebookId)
+    setGeneratedSlides(sessionState.generatedSlides)
+    setInputMessage("")
+    setContextError(null)
+    setActiveCitation(null)
+    setIsContextModalOpen(false)
+    setCurrentSlideIndex(0)
   }, [])
 
-  useEffect(() => {
-    if (slideImage) {
-      localStorage.setItem("slide_image_cache", slideImage)
-    } else {
-      localStorage.removeItem("slide_image_cache")
-    }
+  const {
+    currentSessionId,
+    sessionIndex,
+    notices,
+    loadSession,
+    startNewSession,
+    clearVisualCache,
+  } = useSessionPersistence({
+    currentSessionState,
+    lectureDuration,
+    slideImage,
+    extractedStyle,
+    createSessionId,
+    createEmptySessionState,
+    createSessionSnapshot,
+    hasMeaningfulSessionData,
+    onRestoreSessionState: applySessionState,
+    onRestoreLectureDuration: setLectureDuration,
+    onRestoreSlideImage: setSlideImage,
+    onRestoreExtractedStyle: setExtractedStyle,
+  })
 
-    if (extractedStyle) {
-      localStorage.setItem("slide_style_cache", extractedStyle)
-    } else {
-      localStorage.removeItem("slide_style_cache")
-    }
+  const visualCacheMessage = useMemo(() => {
+    const visualNotice = notices.find(
+      (notice) =>
+        notice.code === "visual-settings-missing" || notice.code === "visual-cache-cleared",
+    )
 
-    localStorage.setItem("lecture_duration_cache", lectureDuration.toString())
-  }, [slideImage, extractedStyle, lectureDuration])
-
-  useEffect(() => {
-    if (!currentSessionId || !hasMeaningfulSessionData(currentSessionState)) {
-      return
-    }
-
-    setSessions((previousSessions) => {
-      const nextSessions = upsertSession(
-        previousSessions,
-        createSessionSnapshot(currentSessionId, currentSessionState),
-      )
-      localStorage.setItem("tattvam_sessions", JSON.stringify(nextSessions))
-      return nextSessions
-    })
-  }, [currentSessionId, currentSessionState])
+    return visualNotice?.message ?? null
+  }, [notices])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -411,40 +425,10 @@ export default function PipelinePageClient() {
     void slidesContainerRef.current.requestFullscreen()
   }
 
-  function applySessionState(sessionState: SessionState) {
-    setActiveStep(sessionState.activeStep)
-    setTalkType(sessionState.talkType)
-    setVerseDetails(sessionState.verseDetails)
-    setGeneralTopic(sessionState.generalTopic)
-    setFestivalName(sessionState.festivalName)
-    setYatraLocation(sessionState.yatraLocation)
-    setExtractedVerseData(sessionState.extractedVerseData)
-    setMessages(sessionState.messages)
-    setSavedSnippets(sessionState.savedSnippets)
-    setNotebookName(sessionState.notebookName)
-    setGeneratedNotebookId(sessionState.generatedNotebookId)
-    setGeneratedSlides(sessionState.generatedSlides)
-    setInputMessage("")
-    setContextError(null)
-    setActiveCitation(null)
-    setIsContextModalOpen(false)
-    setCurrentSlideIndex(0)
-  }
-
-  function loadSession(session: Session) {
-    setCurrentSessionId(session.id)
-    applySessionState(session.state)
-    setIsHistoryOpen(false)
-  }
-
-  function startNewSession() {
-    setCurrentSessionId(createSessionId())
-    applySessionState(createEmptySessionState())
-    setIsHistoryOpen(false)
-  }
-
   return (
     <div className="flex h-screen bg-[#FAFAFA] text-zinc-900 font-sans overflow-hidden">
+      <RecoveryNoticeStack notices={notices} />
+
       <PipelineSidebar
         activeStep={activeStep}
         hasExtractedContext={Boolean(extractedVerseData)}
@@ -543,11 +527,18 @@ export default function PipelinePageClient() {
 
       <HistoryModal
         isOpen={isHistoryOpen}
-        sessions={sessions}
+        sessions={sessionIndex}
         currentSessionId={currentSessionId}
+        notices={notices}
         onClose={() => setIsHistoryOpen(false)}
-        onStartNewSession={startNewSession}
-        onLoadSession={loadSession}
+        onStartNewSession={() => {
+          startNewSession()
+          setIsHistoryOpen(false)
+        }}
+        onLoadSession={async (sessionId) => {
+          await loadSession(sessionId)
+          setIsHistoryOpen(false)
+        }}
       />
 
       {isSettingsOpen && (
@@ -560,6 +551,8 @@ export default function PipelinePageClient() {
           setExtractedStyle={setExtractedStyle}
           lectureDuration={lectureDuration}
           setLectureDuration={setLectureDuration}
+          visualCacheMessage={visualCacheMessage}
+          onClearVisualCache={clearVisualCache}
         />
       )}
     </div>

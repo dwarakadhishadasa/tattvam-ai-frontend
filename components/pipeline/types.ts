@@ -50,3 +50,53 @@ export type Session = {
   updatedAt: number
   state: SessionState
 }
+
+export type SessionIndexEntry = {
+  id: string
+  title: string
+  updatedAt: number
+}
+
+export type PersistedSessionRecord = Session & {
+  stateVersion: number
+}
+
+export type VisualSettingKey = "slide_image_cache" | "slide_style_cache"
+
+export type PersistedVisualSettingRecord = {
+  key: VisualSettingKey
+  value: string
+  updatedAt: number
+}
+
+export type PersistedVisualSettings = {
+  slideImage: string | null
+  extractedStyle: string
+}
+
+export type RecoveryNoticeLevel = "info" | "warning"
+
+export type RecoveryNoticeCode =
+  | "migration-complete"
+  | "migration-partial"
+  | "stale-active-session"
+  | "stale-session-pruned"
+  | "visual-settings-missing"
+  | "persistence-degraded"
+  | "visual-cache-cleared"
+  | "session-restore-failed"
+
+export type RecoveryNotice = {
+  id: string
+  code: RecoveryNoticeCode
+  title: string
+  message: string
+  level: RecoveryNoticeLevel
+}
+
+export type MigrationOutcome = {
+  migratedSessionIds: string[]
+  migratedSettings: VisualSettingKey[]
+  skippedLegacySessions: number
+  notices: RecoveryNotice[]
+}

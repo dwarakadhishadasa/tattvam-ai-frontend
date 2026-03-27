@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { forwardChatQuestion } from "@/lib/chat/server"
+import { ChatBackendUnavailableError, forwardChatQuestion } from "@/lib/chat/server"
 
 export const runtime = "nodejs"
 
@@ -31,6 +31,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data)
   } catch (error) {
+    if (error instanceof ChatBackendUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 502 })
+    }
+
     const message = error instanceof Error ? error.message : "Unexpected chat proxy failure"
     return NextResponse.json({ error: message }, { status: 500 })
   }

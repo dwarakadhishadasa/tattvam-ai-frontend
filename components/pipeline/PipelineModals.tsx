@@ -4,7 +4,9 @@ import {
   ChevronRight,
   Clock,
   ExternalLink,
+  AlertTriangle,
   History,
+  Info,
   Plus,
   Quote,
   Save,
@@ -12,7 +14,7 @@ import {
 } from "lucide-react"
 
 import { YouTubeEmbed } from "@/components/pipeline/YouTubeEmbed"
-import type { Session, TalkType, VerseData } from "@/components/pipeline/types"
+import type { RecoveryNotice, SessionIndexEntry, TalkType, VerseData } from "@/components/pipeline/types"
 import type { Citation } from "@/lib/chat/shared"
 
 type ContextReferenceModalProps = {
@@ -213,17 +215,19 @@ export function CitationModal({ citation, onClose, onSaveSnippet }: CitationModa
 
 type HistoryModalProps = {
   isOpen: boolean
-  sessions: Session[]
+  sessions: SessionIndexEntry[]
   currentSessionId: string
+  notices: RecoveryNotice[]
   onClose: () => void
   onStartNewSession: () => void
-  onLoadSession: (session: Session) => void
+  onLoadSession: (sessionId: string) => void
 }
 
 export function HistoryModal({
   isOpen,
   sessions,
   currentSessionId,
+  notices,
   onClose,
   onStartNewSession,
   onLoadSession,
@@ -263,6 +267,33 @@ export function HistoryModal({
             </div>
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+              {notices.length > 0 && (
+                <div className="mb-6 space-y-3">
+                  {notices.map((notice) => {
+                    const Icon = notice.level === "warning" ? AlertTriangle : Info
+
+                    return (
+                      <div
+                        key={notice.id}
+                        className={`rounded-2xl border px-4 py-3 text-sm ${
+                          notice.level === "warning"
+                            ? "border-amber-200 bg-amber-50 text-amber-900"
+                            : "border-sky-200 bg-sky-50 text-sky-900"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div>
+                            <p className="font-semibold">{notice.title}</p>
+                            <p className="mt-1 text-xs leading-relaxed opacity-90">{notice.message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
               <button
                 onClick={onStartNewSession}
                 className="w-full mb-6 flex items-center justify-center gap-2 py-4 border-2 border-dashed border-zinc-200 rounded-2xl text-zinc-500 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 transition-all font-medium"
@@ -281,7 +312,7 @@ export function HistoryModal({
                   sessions.map((session) => (
                     <button
                       key={session.id}
-                      onClick={() => onLoadSession(session)}
+                      onClick={() => onLoadSession(session.id)}
                       className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between group ${
                         session.id === currentSessionId
                           ? "border-zinc-900 bg-zinc-50"
@@ -298,12 +329,6 @@ export function HistoryModal({
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
-                          </span>
-                          <span className="px-2 py-0.5 bg-zinc-100 rounded-md capitalize">
-                            {session.state.talkType || "New"}
-                          </span>
-                          <span className="px-2 py-0.5 bg-zinc-100 rounded-md">
-                            Step {session.state.activeStep + 1}
                           </span>
                         </div>
                       </div>
@@ -323,5 +348,42 @@ export function HistoryModal({
         </div>
       )}
     </AnimatePresence>
+  )
+}
+
+type RecoveryNoticeStackProps = {
+  notices: RecoveryNotice[]
+}
+
+export function RecoveryNoticeStack({ notices }: RecoveryNoticeStackProps) {
+  if (notices.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex flex-col gap-3 p-4">
+      {notices.slice(0, 3).map((notice) => {
+        const Icon = notice.level === "warning" ? AlertTriangle : Info
+
+        return (
+          <div
+            key={notice.id}
+            className={`pointer-events-auto mx-auto w-full max-w-3xl rounded-2xl border px-4 py-3 shadow-sm ${
+              notice.level === "warning"
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-sky-200 bg-sky-50 text-sky-900"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">{notice.title}</p>
+                <p className="mt-1 text-xs leading-relaxed opacity-90">{notice.message}</p>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
