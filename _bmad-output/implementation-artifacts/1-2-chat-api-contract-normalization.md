@@ -1,6 +1,6 @@
 # Story 1.2: Chat API Contract Normalization
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifact
 

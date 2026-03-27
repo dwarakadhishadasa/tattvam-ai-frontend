@@ -2,6 +2,8 @@ import "server-only"
 
 import { GoogleGenAI } from "@google/genai"
 
+import { normalizeGeminiError } from "@/lib/gemini/errors"
+
 const GEMINI_MODEL = "gemini-3-flash-preview"
 
 type InlineDataPart = {
@@ -35,41 +37,52 @@ function getGeminiClient(): GoogleGenAI {
 
   return cachedClient
 }
-
 export async function generateGeminiJson<T>(prompt: string): Promise<T> {
-  const response = await getGeminiClient().models.generateContent({
-    model: GEMINI_MODEL,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-    },
-  })
+  try {
+    const response = await getGeminiClient().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      },
+    })
 
-  if (!response.text) {
-    throw new Error("Gemini returned an empty JSON response")
+    if (!response.text) {
+      throw new Error("Gemini returned an empty JSON response")
+    }
+
+    return JSON.parse(response.text) as T
+  } catch (error) {
+    throw normalizeGeminiError(error)
   }
-
-  return JSON.parse(response.text) as T
 }
 
 export async function generateGeminiText(prompt: string): Promise<string> {
-  const response = await getGeminiClient().models.generateContent({
-    model: GEMINI_MODEL,
-    contents: prompt,
-  })
+  try {
+    const response = await getGeminiClient().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+    })
 
-  return response.text?.trim() || ""
+    return response.text?.trim() || ""
+  } catch (error) {
+    throw normalizeGeminiError(error)
+  }
 }
 
 export async function generateGeminiTextFromParts(
   parts: Array<InlineDataPart | TextPart>,
 ): Promise<string> {
-  const response = await getGeminiClient().models.generateContent({
-    model: GEMINI_MODEL,
-    contents: {
-      parts,
-    },
-  })
+  try {
+    const response = await getGeminiClient().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: {
+        parts,
+      },
+    })
 
-  return response.text?.trim() || ""
+    return response.text?.trim() || ""
+  } catch (error) {
+    throw normalizeGeminiError(error)
+  }
 }

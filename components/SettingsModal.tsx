@@ -59,16 +59,17 @@ export default function SettingsModal({
       const data = (await response.json()) as { style?: unknown; error?: unknown }
 
       if (!response.ok) {
-        throw new Error(
-          typeof data.error === "string" ? data.error : "Failed to extract visual style",
-        )
+        const errorMessage =
+          typeof data.error === "string" ? data.error : "Failed to extract visual style"
+        setExtractedStyle(errorMessage)
+        return
       }
 
       const styleText = typeof data.style === "string" ? data.style : "Could not extract style."
       setExtractedStyle(styleText)
     } catch (error) {
       console.error("Style extraction error:", error)
-      setExtractedStyle("Error extracting style from image.")
+      setExtractedStyle("Visual style extraction failed. You can still describe the style manually.")
     } finally {
       setIsExtracting(false)
     }

@@ -252,10 +252,12 @@ export function ContextStep({
 
 type ExtractionStepProps = {
   extractedVerseData: VerseData | null
+  contextError: string | null
   messages: Message[]
   inputMessage: string
   savedSnippets: SavedSnippet[]
   activeNotebookEntryId: string | null
+  isFetchingContext: boolean
   isChatting: boolean
   lectureDuration: number
   wordCount: number
@@ -263,6 +265,7 @@ type ExtractionStepProps = {
   canCompile: boolean
   notebookReadiness: NotebookReadiness
   isGeneratingNotebook: boolean
+  notebookGenerationError: string | null
   messagesEndRef: RefObject<HTMLDivElement | null>
   onBackToContext: () => void
   onOpenContext: () => void
@@ -282,10 +285,12 @@ type ExtractionStepProps = {
 
 export function ExtractionStep({
   extractedVerseData,
+  contextError,
   messages,
   inputMessage,
   savedSnippets,
   activeNotebookEntryId,
+  isFetchingContext,
   isChatting,
   lectureDuration,
   wordCount,
@@ -293,6 +298,7 @@ export function ExtractionStep({
   canCompile,
   notebookReadiness,
   isGeneratingNotebook,
+  notebookGenerationError,
   messagesEndRef,
   onBackToContext,
   onOpenContext,
@@ -352,6 +358,19 @@ export function ExtractionStep({
 
         <div className="flex-1 overflow-y-auto p-8 hide-scrollbar pb-32 chat-messages-container">
           <div className="max-w-3xl mx-auto space-y-8">
+            {isFetchingContext && !extractedVerseData && (
+              <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600 shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                <p>Fetching lecture reference in the background. You can start extraction now.</p>
+              </div>
+            )}
+
+            {contextError && !extractedVerseData && (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <p>{contextError}</p>
+              </div>
+            )}
+
             {messages.map((message) => (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -482,38 +501,46 @@ export function ExtractionStep({
 
       <AnimatePresence>
         {activeEntry && (
-          <motion.div
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 24 }}
-            transition={{ duration: 0.22 }}
-            className="absolute inset-y-6 right-[27rem] z-20 w-[28rem] rounded-[2rem] border border-zinc-200 bg-white/96 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.14)] backdrop-blur"
-          >
-            <div className="flex h-full flex-col gap-4">
-              <div className="flex items-start justify-between gap-4 border-b border-zinc-100 pb-4">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-900">Notebook Editor</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">
-                    Entry {savedSnippets.findIndex((snippet) => snippet.id === activeEntry.id) + 1}
-                  </p>
-                </div>
-                <button
-                  onClick={onCloseNotebookEntry}
-                  className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
-                >
-                  Close
-                </button>
-              </div>
+          <>
+            <motion.button
+              type="button"
+              aria-label="Close notebook editor"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-20 bg-transparent"
+              onClick={onCloseNotebookEntry}
+            />
 
-              <textarea
-                value={activeEntry.content}
-                onChange={(event) =>
-                  onUpdateNotebookEntry(activeEntry.id, event.target.value)
-                }
-                className="min-h-0 flex-1 resize-none rounded-[1.5rem] border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400 focus:bg-white"
-              />
-            </div>
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 24 }}
+              transition={{ duration: 0.22 }}
+              className="absolute inset-y-6 right-[27rem] z-30 w-[28rem] rounded-[2rem] border border-zinc-200 bg-white/96 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.14)] backdrop-blur"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex h-full flex-col gap-4">
+                <div className="flex items-start justify-between gap-4 border-b border-zinc-100 pb-4">
+                  <p className="text-sm font-semibold text-zinc-900">Notebook Editor</p>
+                  <button
+                    onClick={onCloseNotebookEntry}
+                    className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <textarea
+                  value={activeEntry.content}
+                  onChange={(event) =>
+                    onUpdateNotebookEntry(activeEntry.id, event.target.value)
+                  }
+                  className="min-h-0 flex-1 resize-none rounded-[1.5rem] border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400 focus:bg-white"
+                />
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -652,6 +679,12 @@ export function ExtractionStep({
               </div>
             )}
 
+            {notebookGenerationError && (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <p>{notebookGenerationError}</p>
+              </div>
+            )}
+
             <button
               onClick={onGenerateNotebook}
               disabled={!canCompile || isGeneratingNotebook}
@@ -660,7 +693,7 @@ export function ExtractionStep({
               {isGeneratingNotebook ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating Slides...
+                  Creating Notebook...
                 </>
               ) : (
                 <>

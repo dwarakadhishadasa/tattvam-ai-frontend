@@ -48,8 +48,9 @@ progression gating.
 1. Open the app and confirm the workflow starts on the context screen.
 2. Choose one context type:
    - `Verse Specific Lecture` for `GET /api/verse`
-   - `General Lecture`, `Festival Lecture`, or `Yatra Talk` for Gemini-backed
-     helper routes
+   - `General Lecture` or `Festival Lecture` for direct extraction entry with no
+     reference fetch
+   - `Yatra Talk` for the route-backed helper reference
 3. Complete the required input and continue to extraction.
 4. Send a normal extraction question and confirm the app returns a backend-backed
    assistant response.
@@ -66,14 +67,16 @@ progression gating.
 11. Save the full assistant response as an insight.
 12. Attempt to save the same full response again and confirm the knowledge base does
     not create a duplicate entry.
-13. If you used a verse or generated context, open `View Reference` and save that
-    content into the knowledge base.
+13. If you used `Verse Specific Lecture` or `Yatra Talk`, open `View Reference`
+    once the reference loads and save that content into the knowledge base.
 14. Confirm the saved-snippet counter increases and the `Proceed to Synthesis`
     action becomes available only after at least one insight exists.
 
 ### Expected Results
 
-- Extraction opens only after context is successfully loaded.
+- General and festival enter extraction immediately after the user continues.
+- Verse and yatra may load their optional reference in the background after
+  extraction opens.
 - Live extraction requests send only the trimmed user question in the backend
   payload.
 - Citation review is interactive and supports embeds for YouTube URLs.
@@ -149,6 +152,8 @@ current business spec.
    reset while cached visual settings remain.
 3. For verse-specific context, confirm the reference modal links back to
    `prabhupadabooks.com`.
+4. For general or festival context, confirm extraction works without any `View Reference`
+   affordance or pre-chat reference wait.
 
 ## Known Current Limitations
 

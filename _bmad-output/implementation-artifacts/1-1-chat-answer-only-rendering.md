@@ -1,6 +1,6 @@
 # Story 1.1: Chat Answer-Only Rendering
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifact
 

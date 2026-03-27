@@ -39,8 +39,9 @@ This document records the runtime interfaces the current frontend depends on.
 
 - This route scrapes `prabhupadabooks.com`.
 - The downstream UI normalizes the response into `extractedVerseData`.
+- The active UI enters extraction immediately and allows this reference to resolve in the background.
 
-## 2. General Lecture Context API
+## 2. General Lecture Context API (Dormant in Active UI)
 
 ### Request
 
@@ -67,9 +68,10 @@ This document records the runtime interfaces the current frontend depends on.
 ### Notes
 
 - The route currently performs no explicit request validation beyond JSON parsing.
-- The page maps the response into `VerseData` with an empty `url`.
+- The current UI no longer calls this route during context setup.
+- General lectures now enter extraction immediately using only local `generalTopic` state and do not require a fetched reference object.
 
-## 3. Festival Lecture Context API
+## 3. Festival Lecture Context API (Dormant in Active UI)
 
 ### Request
 
@@ -92,6 +94,11 @@ This document records the runtime interfaces the current frontend depends on.
   ]
 }
 ```
+
+### Notes
+
+- The current UI no longer calls this route during context setup.
+- Festival lectures now enter extraction immediately using only local `festivalName` state and do not require a fetched reference object.
 
 ## 4. Yatra Lecture Context API
 
@@ -117,6 +124,11 @@ This document records the runtime interfaces the current frontend depends on.
 }
 ```
 
+### Notes
+
+- Yatra still uses a route-backed helper to assemble an optional reference/context object.
+- The active UI enters extraction immediately and allows this reference to resolve in the background.
+
 ## 5. Extraction Chat Contract
 
 The frontend extraction chat now depends on a same-origin route handler:
@@ -141,8 +153,11 @@ That route forwards to the backend-owned notebook chat endpoint:
 - The frontend MAY still preserve local deterministic test helpers, but the live
   extraction path is the backend endpoint above.
 - The `question` field is the user's trimmed raw extraction input.
-- Context chosen in step 0 remains local UI state for display, history, and saved
-  reference actions; it is not serialized into the chat request payload.
+- Context chosen in step 0 remains local UI state for display, history, session
+  titles, and any available reference actions; it is not serialized into the chat
+  request payload.
+- General and festival modes do not perform any pre-chat reference fetch in the
+  active UI.
 
 ### Success Response
 
@@ -289,8 +304,6 @@ TATTVAM_CHAT_API_URL (recommended for configurability; default may point at the 
 
 This is used by:
 - `components/SettingsModal.tsx`
-- `app/api/lecture/general/route.ts`
-- `app/api/lecture/festival/route.ts`
 - `app/api/lecture/yatra/route.ts`
 
 `TATTVAM_CHAT_API_URL` is used by the server-side chat adapter or route that

@@ -29,17 +29,17 @@ working on.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `talkType` | `'verse' | 'general' | 'festival' | 'yatra' | null` | Determines which input surface and API path are used |
+| `talkType` | `'verse' | 'general' | 'festival' | 'yatra' | null` | Determines which input surface is shown; only verse and yatra currently fetch a reference API during context setup |
 | `verseDetails.book` | `string` | Current options are `bg` and `sb` |
 | `verseDetails.verse` | `string` | Dot-delimited verse address such as `1.1` or `1.1.1` |
 | `generalTopic` | `string` | User-entered topic for general lectures |
 | `festivalName` | `string` | User-entered festival name |
 | `yatraLocation` | `string` | User-entered location |
-| `extractedVerseData` | `VerseData | null` | Normalized context object used downstream regardless of talk type |
+| `extractedVerseData` | `VerseData | null` | Optional normalized reference/context object used downstream when a fetched reference exists |
 
 ### 2. VerseData
 
-Normalized context payload used by extraction regardless of how context was created.
+Normalized reference payload used by extraction when a fetched context exists.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -47,7 +47,7 @@ Normalized context payload used by extraction regardless of how context was crea
 | `verseText` | `string` | Sanskrit/transliteration text when present |
 | `translation` | `string` | Translation or overview |
 | `purport` | `string` | Purport or generated key points |
-| `url` | `string` | Source URL for verse contexts; empty for generated lecture contexts |
+| `url` | `string` | Source URL for verse contexts; empty for route-generated contexts such as yatra |
 
 ### 3. Conversation Message
 
@@ -166,7 +166,7 @@ Represents a browser-local saved session for history and resume.
 
 | Rule | Current Implementation |
 |------|------------------------|
-| Step 1 accessibility | Requires `extractedVerseData` |
+| Step 1 accessibility | Requires a selected `talkType`; `general` and `festival` do not require `extractedVerseData` |
 | Step 2 accessibility | Requires `generatedNotebookId` |
 | Compile availability | `savedSnippets.length > 0` |
 | Content sufficiency threshold | `saved word count >= lectureDuration * 140` |
@@ -180,12 +180,13 @@ Represents a browser-local saved session for history and resume.
 ### Core workflow
 
 1. `activeStep = 0` and context is empty.
-2. User selects a talk type and fetches context.
-3. Successful context fetch sets `extractedVerseData` and moves to `activeStep = 1`.
-4. User chats, reviews citations, and saves notebook entries.
-5. Inside extraction, the user studies and edits notebook entries.
-6. Compilation fabricates `generatedNotebookId` and advances to `activeStep = 2`.
-7. Slide generation produces `generatedSlides`, enabling preview and fullscreen presentation.
+2. User selects a talk type and continues to extraction.
+3. `general` and `festival` enter extraction immediately with `extractedVerseData = null`.
+4. `verse` and `yatra` may populate `extractedVerseData` asynchronously after extraction opens.
+5. User chats, reviews citations, and saves notebook entries.
+6. Inside extraction, the user studies and edits notebook entries.
+7. Compilation fabricates `generatedNotebookId` and advances to `activeStep = 2`.
+8. Slide generation produces `generatedSlides`, enabling preview and fullscreen presentation.
 
 ### Adjacent transitions
 

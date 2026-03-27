@@ -1,6 +1,6 @@
 # Story 1.3: Extraction Notebook Workspace
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifact
 

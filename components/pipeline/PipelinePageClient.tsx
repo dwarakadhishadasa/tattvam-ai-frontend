@@ -52,6 +52,7 @@ import {
   stripCitationAppendix,
   type Citation,
 } from "@/lib/chat/shared"
+import type { CreateNotebookResponse } from "@/lib/notebooks/shared"
 
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), {
   ssr: false,
@@ -81,11 +82,13 @@ export default function PipelinePageClient() {
   const [isChatting, setIsChatting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const slidesContainerRef = useRef<HTMLDivElement>(null)
+  const contextRequestIdRef = useRef(0)
   const [activeCitation, setActiveCitation] = useState<ActiveCitationSelection | null>(null)
 
   const [notebookName, setNotebookName] = useState("")
   const [activeNotebookEntryId, setActiveNotebookEntryId] = useState<string | null>(null)
   const [isGeneratingNotebook, setIsGeneratingNotebook] = useState(false)
+  const [notebookGenerationError, setNotebookGenerationError] = useState<string | null>(null)
   const [generatedNotebookId, setGeneratedNotebookId] = useState<string | null>(null)
   const [lectureDuration, setLectureDuration] = useState(DEFAULT_LECTURE_DURATION)
 
@@ -176,6 +179,7 @@ export default function PipelinePageClient() {
     setGeneratedSlides(sessionState.generatedSlides)
     setInputMessage("")
     setContextError(null)
+    setNotebookGenerationError(null)
     setActiveCitation(null)
     setIsContextModalOpen(false)
     setCurrentSlideIndex(0)
@@ -268,33 +272,28 @@ export default function PipelinePageClient() {
       return
     }
 
-    setIsFetchingContext(true)
+    const requestId = contextRequestIdRef.current + 1
+    contextRequestIdRef.current = requestId
     setContextError(null)
+    setExtractedVerseData(null)
+
+    if (talkType === "general" || talkType === "festival") {
+      setIsFetchingContext(false)
+      setActiveStep(1)
+      return
+    }
+
+    setIsFetchingContext(true)
+    setActiveStep(1)
 
     try {
       if (talkType === "verse") {
         const data = await fetchJson<VerseData>(
           `/api/verse?book=${verseDetails.book}&verse=${verseDetails.verse}`,
         )
-        setExtractedVerseData(data)
-      } else if (talkType === "general") {
-        const data = await fetchJson<{ overview: string; keyPoints: string[] }>(
-          "/api/lecture/general",
-          {
-            method: "POST",
-            body: JSON.stringify({ topic: generalTopic }),
-          },
-        )
-        setExtractedVerseData(buildLectureVerseData("general", generalTopic, data))
-      } else if (talkType === "festival") {
-        const data = await fetchJson<{ overview: string; keyPoints: string[] }>(
-          "/api/lecture/festival",
-          {
-            method: "POST",
-            body: JSON.stringify({ festivalName }),
-          },
-        )
-        setExtractedVerseData(buildLectureVerseData("festival", festivalName, data))
+        if (contextRequestIdRef.current === requestId) {
+          setExtractedVerseData(data)
+        }
       } else if (talkType === "yatra") {
         const data = await fetchJson<{ overview: string; keyPoints: string[] }>(
           "/api/lecture/yatra",
@@ -303,15 +302,19 @@ export default function PipelinePageClient() {
             body: JSON.stringify({ location: yatraLocation }),
           },
         )
-        setExtractedVerseData(buildLectureVerseData("yatra", yatraLocation, data))
+        if (contextRequestIdRef.current === requestId) {
+          setExtractedVerseData(buildLectureVerseData("yatra", yatraLocation, data))
+        }
       }
-
-      setActiveStep(1)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to fetch context"
-      setContextError(message)
+      if (contextRequestIdRef.current === requestId) {
+        const message = error instanceof Error ? error.message : "Failed to fetch context"
+        setContextError(message)
+      }
     } finally {
-      setIsFetchingContext(false)
+      if (contextRequestIdRef.current === requestId) {
+        setIsFetchingContext(false)
+      }
     }
   }
 
@@ -390,23 +393,35 @@ export default function PipelinePageClient() {
   }
 
   async function handleGenerateNotebook() {
-    if (!canCompile) {
+    if (!canCompile || isGeneratingNotebook) {
       return
     }
 
     setIsGeneratingNotebook(true)
+    setNotebookGenerationError(null)
     const nextNotebookName = notebookName.trim() || "Untitled Workspace"
 
     if (!notebookName.trim()) {
       setNotebookName(nextNotebookName)
     }
 
-    window.setTimeout(() => {
-      setGeneratedNotebookId(`nb_${Date.now()}`)
+    try {
+      const data = await fetchJson<CreateNotebookResponse>("/api/notebooks", {
+        method: "POST",
+        body: JSON.stringify({ title: nextNotebookName }),
+      })
+
+      setNotebookName(data.notebook.title)
+      setGeneratedNotebookId(data.notebook.id)
+      setGeneratedSlides("")
       setIsGeneratingNotebook(false)
       setActiveNotebookEntryId(null)
       setActiveStep(2)
-    }, 2500)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create notebook"
+      setNotebookGenerationError(message)
+      setIsGeneratingNotebook(false)
+    }
   }
 
   async function handleGenerateSlides() {
@@ -453,7 +468,9 @@ export default function PipelinePageClient() {
 
       <PipelineSidebar
         activeStep={activeStep}
-        hasExtractedContext={Boolean(extractedVerseData)}
+        hasExtractedContext={
+          Boolean(extractedVerseData) || talkType === "general" || talkType === "festival"
+        }
         savedSnippetCount={savedSnippets.length}
         hasGeneratedNotebook={Boolean(generatedNotebookId)}
         onStepChange={setActiveStep}
@@ -484,10 +501,12 @@ export default function PipelinePageClient() {
           {activeStep === 1 && (
             <ExtractionStep
               extractedVerseData={extractedVerseData}
+              contextError={contextError}
               messages={messages}
               inputMessage={inputMessage}
               savedSnippets={savedSnippets}
               activeNotebookEntryId={activeNotebookEntryId}
+              isFetchingContext={isFetchingContext}
               isChatting={isChatting}
               lectureDuration={lectureDuration}
               wordCount={wordCount}
@@ -495,6 +514,7 @@ export default function PipelinePageClient() {
               canCompile={canCompile}
               notebookReadiness={notebookReadiness}
               isGeneratingNotebook={isGeneratingNotebook}
+              notebookGenerationError={notebookGenerationError}
               messagesEndRef={messagesEndRef}
               onBackToContext={() => setActiveStep(0)}
               onOpenContext={() => setIsContextModalOpen(true)}

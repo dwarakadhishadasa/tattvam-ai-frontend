@@ -2,7 +2,7 @@
 title: 'Chat API Contract Normalization'
 type: 'feature'
 created: '2026-03-27'
-status: 'ready-for-dev'
+status: 'done'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/spec.md'

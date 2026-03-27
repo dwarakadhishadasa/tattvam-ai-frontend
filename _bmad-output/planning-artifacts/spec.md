@@ -70,6 +70,7 @@ The presenter configures lecture duration and visual style settings, optionally 
 
 - If the user submits an empty chat prompt, the app does not send a request or add a new message.
 - If the notebook chat backend is unavailable or returns a malformed payload, the app shows the existing chat failure fallback instead of appending a partial assistant response.
+- If the user selects `General Lecture` or `Festival Lecture`, the app allows extraction to start without waiting for or requiring a fetched reference.
 - If the assistant request, style-analysis request, or slide-generation request fails, the app surfaces an error message instead of silently succeeding.
 - If the user removes all saved responses, notebook compilation remains unavailable until at least one response is saved again.
 - If the saved responses appear too short for the selected lecture duration, the app warns that more content is recommended rather than blocking compilation outright.
@@ -83,7 +84,7 @@ The presenter configures lecture duration and visual style settings, optionally 
 ## Constitution Alignment *(mandatory)*
 
 - **Route Surface Impact**: The current user-facing workflow still lives on a single route and is documented as one continuous guided journey. Any future implementation derived from this spec should preserve that unified flow while reducing concentration in the route layer rather than expanding it.
-- **Client Boundary Plan**: The documented experience depends on browser-managed conversation state, local persistence, file upload, media embeds, modal interactions, and fullscreen behavior. Backend chat access, lecture-context generation, style extraction, and slide generation should be mediated through server-side routes or adapters so the client remains focused on interaction state rather than external service wiring.
+- **Client Boundary Plan**: The documented experience depends on browser-managed conversation state, local persistence, file upload, media embeds, modal interactions, and fullscreen behavior. Backend chat access, verse lookup, yatra context generation, style extraction, and slide generation should be mediated through server-side routes or adapters, while general/festival context setup may remain client-local when no fetched reference is required.
 - **Module Boundary Plan**: This specification assumes distinct product responsibilities for chat exploration, citation review, notebook study/editing, compile readiness, style configuration, and slide presentation. Any follow-on implementation should express those responsibilities as separate feature modules rather than further centralizing them.
 - **Shared UI Reuse Plan**: Existing shared controls for buttons, inputs, text areas, cards, and scrollable panels should be reused where they support the documented workflow, with product-specific styling layered on top only when needed.
 - **Library Version Alignment**: No dependency change is required to describe the current behavior. Any later implementation work should stay aligned with the dependency versions already declared in the repository unless an upgrade is explicitly planned and validated.
@@ -94,6 +95,7 @@ The presenter configures lecture duration and visual style settings, optionally 
 ### Functional Requirements
 
 - **FR-001**: The system MUST present the workflow as three connected stages: context setup, extraction workspace, and presentation.
+- **FR-001A**: The system MUST allow `General Lecture` and `Festival Lecture` to enter extraction without generating or fetching a reference object first.
 - **FR-002**: The system MUST begin the extraction stage with a welcome message and allow users to submit freeform questions about lecture material.
 - **FR-002A**: The system MUST send extraction chat questions through a backend-owned notebook chat interface instead of calling the chat model directly from the browser.
 - **FR-002B**: The system MUST send only the user's trimmed extraction input as the backend `question` value and MUST NOT prepend or append locally assembled lecture context to that field.
@@ -159,6 +161,6 @@ The presenter configures lecture duration and visual style settings, optionally 
 - Users operate the current product as a single-screen workflow rather than a multi-page or collaborative workspace.
 - Extraction chat depends on a reachable notebook chat backend being configured for the app.
 - Citation-rich responses, style extraction, and slide generation depend on valid external model access being configured for the app.
-- The current code routes Gemini-backed lecture-context generation, style extraction, and slide generation through server-owned Next.js handlers rather than direct browser SDK usage.
+- The current code fetches verse references through a scrape route, yatra context through a server-owned route, and allows general/festival setup to proceed without a fetched reference object.
 - The current notebook compilation step represents a local product handoff rather than a fully synchronized external notebook record managed by this repository.
 - Current scope ends at in-app preview and fullscreen presentation of a markdown-based deck; actual presentation-file export and shared multi-user workflows are not part of the delivered behavior.

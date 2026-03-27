@@ -31,7 +31,8 @@ presentation.
 
 **Decision**: Record extraction chat as a backend-owned notebook integration reached
 through a frontend server boundary, while style extraction and slide generation
-remain browser-driven Gemini calls and context helpers remain route-backed.
+remain browser-driven Gemini calls and only verse/yatra context helpers remain
+route-backed in the active UI.
 
 **Rationale**:
 - The supplied integration target is
@@ -43,10 +44,11 @@ remain browser-driven Gemini calls and context helpers remain route-backed.
   itself moves behind a route handler or server adapter.
 - `components/SettingsModal.tsx` instantiates `GoogleGenAI` directly for image-based
   style extraction.
-- `app/api/lecture/general`, `festival`, and `yatra` also call Gemini, but they use
-  the same public env-var convention as the client.
-- The practical effect is that chat becomes the first server-owned AI boundary in
-  the main workflow, while the rest of the product remains mixed-surface.
+- `app/api/lecture/yatra` still calls Gemini for optional reference scaffolding.
+- General and festival setup no longer call a helper route in the active UI because
+  extraction does not require a generated reference for those talk types.
+- The practical effect is that chat becomes the main server-owned AI boundary in
+  the active workflow, while the rest of the product remains mixed-surface.
 
 **Alternatives considered**:
 - Keep chat in the browser and only swap the URL. Rejected because it would add yet
@@ -96,23 +98,26 @@ notebook ID after a timeout instead of invoking a real notebook service.
 
 ## Decision 5: Document context acquisition as a hybrid of scraping and AI-generated scaffolding
 
-**Decision**: Split context acquisition into two families:
+**Decision**: Split context acquisition into three families:
 - verse-specific context via `GET /api/verse` scraping `prabhupadabooks.com`
-- general, festival, and yatra context via Gemini-backed route handlers
+- yatra context via a Gemini-backed route handler
+- general and festival setup via local topic/name state with no required reference fetch
 
 **Rationale**:
 - Verse context is fetched with `cheerio` and parsed from remote HTML.
-- General, festival, and yatra flows use POST route handlers that return
-  `overview` plus `keyPoints`.
-- All of these flows normalize into `extractedVerseData` so the extraction UI,
-  session history, and reference-saving flows can treat them as a single context
-  object while chat requests still send only the user's raw question.
+- Yatra uses a POST route handler that returns `overview` plus `keyPoints`.
+- General and festival enter extraction immediately and keep their setup data in
+  `generalTopic` or `festivalName` without populating `extractedVerseData`.
+- When `extractedVerseData` exists, the extraction UI, session history, and
+  reference-saving flows can treat it as a single context object while chat
+  requests still send only the user's raw question.
 
 **Alternatives considered**:
 - Document all contexts as model-generated. Rejected because verse lookup is a real
-  scrape-and-parse flow.
-- Document separate downstream state per talk type. Rejected because the UI
-  converges them into one normalized context shape.
+  scrape-and-parse flow and general/festival no longer fetch generated context in
+  the active UI.
+- Document separate downstream state per talk type. Rejected because the UI still
+  uses one optional `extractedVerseData` shape whenever a fetched reference exists.
 
 ## Decision 6: Preserve the deterministic citation demo path in verification guidance
 

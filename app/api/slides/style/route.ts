@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { GeminiProviderUnavailableError } from "@/lib/gemini/errors"
 import { generateGeminiTextFromParts } from "@/lib/gemini/server"
 
 export const runtime = "nodejs"
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
       style: style || "Could not extract style.",
     })
   } catch (error) {
+    if (error instanceof GeminiProviderUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    }
+
     const message = error instanceof Error ? error.message : "Failed to extract slide style"
     return NextResponse.json({ error: message }, { status: 500 })
   }
