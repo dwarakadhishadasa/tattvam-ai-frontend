@@ -1,0 +1,5 @@
+{
+  "name": "Tattvam AI",
+  "description": "Intelligent lecture synthesis and slide generation powered by NotebookLM and Gemini.",
+  "requestFramePermissions": []
+}
