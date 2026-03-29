@@ -1,9 +1,42 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  DEFAULT_NOTEBOOK_SOURCE_TITLE,
   getNotebookBackendErrorMessage,
+  normalizeCreateAndSeedNotebookRequest,
   normalizeCreateNotebookResponse,
 } from "../../lib/notebooks/shared"
+
+describe("create and seed notebook request normalization", () => {
+  it("trims title and source text while defaulting the source title", () => {
+    expect(
+      normalizeCreateAndSeedNotebookRequest({
+        title: " Lecture Workspace ",
+        sourceText: " Seeded text ",
+      }),
+    ).toEqual({
+      title: "Lecture Workspace",
+      sourceText: "Seeded text",
+      sourceTitle: DEFAULT_NOTEBOOK_SOURCE_TITLE,
+    })
+  })
+
+  it("rejects blank title or blank source text", () => {
+    expect(
+      normalizeCreateAndSeedNotebookRequest({
+        title: "Lecture Workspace",
+        sourceText: "   ",
+      }),
+    ).toBeNull()
+
+    expect(
+      normalizeCreateAndSeedNotebookRequest({
+        title: "   ",
+        sourceText: "Seeded text",
+      }),
+    ).toBeNull()
+  })
+})
 
 describe("create notebook response normalization", () => {
   it("maps the backend success payload into the app contract", () => {
@@ -68,5 +101,12 @@ describe("create notebook error handling", () => {
     expect(getNotebookBackendErrorMessage({ error: "Notebook creation failed" })).toBe(
       "Notebook creation failed",
     )
+  })
+
+  it("falls back to detail or the provided default message", () => {
+    expect(getNotebookBackendErrorMessage({ detail: "Source upload failed" })).toBe(
+      "Source upload failed",
+    )
+    expect(getNotebookBackendErrorMessage({}, "Fallback message")).toBe("Fallback message")
   })
 })

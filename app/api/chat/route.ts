@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { isNotebookBackendConfigurationError } from "@/lib/backend/endpoints"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import { ChatBackendUnavailableError, forwardChatQuestion } from "@/lib/chat/server"
 
@@ -43,6 +44,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(normalizedResponse)
   } catch (error) {
+    if (isNotebookBackendConfigurationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
     if (error instanceof ChatBackendUnavailableError) {
       return NextResponse.json({ error: error.message }, { status: 502 })
     }

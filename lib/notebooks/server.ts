@@ -1,7 +1,7 @@
-const DEFAULT_NOTEBOOKS_API_URL = "http://127.0.0.1:8000/v1/notebooks"
+import { getNotebookSetSourceUrl, getNotebooksUrl } from "@/lib/backend/endpoints"
 
 export const NOTEBOOK_BACKEND_UNAVAILABLE_MESSAGE =
-  "Notebook backend is unavailable. Start the notebook service or set TATTVAM_NOTEBOOKS_API_URL to a reachable endpoint."
+  "Notebook backend is unavailable. Start the notebook service or set TATTVAM_NOTEBOOK_BACKEND_ORIGIN to a reachable backend origin."
 
 export class NotebookBackendUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -14,38 +14,39 @@ export class NotebookBackendUnavailableError extends Error {
   }
 }
 
-export function normalizeNotebookApiUrl(url: string): string {
-  const trimmedUrl = url.trim()
-
-  if (!trimmedUrl) {
-    return DEFAULT_NOTEBOOKS_API_URL
-  }
-
-  try {
-    const parsedUrl = new URL(trimmedUrl)
-
-    if (parsedUrl.hostname === "0.0.0.0") {
-      parsedUrl.hostname = "127.0.0.1"
-    }
-
-    return parsedUrl.toString()
-  } catch {
-    return trimmedUrl
-  }
-}
-
-export function getNotebookApiUrl(rawUrl = process.env.TATTVAM_NOTEBOOKS_API_URL): string {
-  return normalizeNotebookApiUrl(rawUrl?.trim() || DEFAULT_NOTEBOOKS_API_URL)
-}
-
 export async function requestNotebookCreation(title: string): Promise<Response> {
+  const notebooksUrl = getNotebooksUrl()
+
   try {
-    return await fetch(getNotebookApiUrl(), {
+    return await fetch(notebooksUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ title }),
+      cache: "no-store",
+    })
+  } catch (error) {
+    throw new NotebookBackendUnavailableError(NOTEBOOK_BACKEND_UNAVAILABLE_MESSAGE, {
+      cause: error,
+    })
+  }
+}
+
+export async function requestNotebookTextSourceCreation(
+  notebookId: string,
+  title: string,
+  content: string,
+): Promise<Response> {
+  const notebookSourcesUrl = getNotebookSetSourceUrl(notebookId)
+
+  try {
+    return await fetch(notebookSourcesUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title, content }),
       cache: "no-store",
     })
   } catch (error) {

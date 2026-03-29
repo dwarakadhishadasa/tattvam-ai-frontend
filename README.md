@@ -17,6 +17,7 @@ View your app in AI Studio: https://ai.studio/apps/ad340ec1-f98c-4712-85f7-ac0b9
    `npm install`
 2. Set these values in [.env.local](.env.local):
    - `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-backed style extraction, slide generation, and lecture helper routes
-   - `TATTVAM_CHAT_API_URL` for extraction chat, for example `http://127.0.0.1:8000/v1/notebooks/da406743-a373-47f9-9275-6c2e1e86c2b6/chat/ask`
+   - `TATTVAM_NOTEBOOK_BACKEND_ORIGIN` for the notebook backend origin, for example `http://127.0.0.1:8000`
+   - `TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID` for the notebook targeted by extraction chat, for example `da406743-a373-47f9-9275-6c2e1e86c2b6`
 3. Run the app:
    `npm run dev`

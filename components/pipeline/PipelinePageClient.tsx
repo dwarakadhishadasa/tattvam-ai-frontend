@@ -406,9 +406,14 @@ export default function PipelinePageClient() {
     }
 
     try {
+      const sourceText = buildNotebookCompileSource(savedSnippets)
+
       const data = await fetchJson<CreateNotebookResponse>("/api/notebooks", {
         method: "POST",
-        body: JSON.stringify({ title: nextNotebookName }),
+        body: JSON.stringify({
+          title: nextNotebookName,
+          sourceText,
+        }),
       })
 
       setNotebookName(data.notebook.title)

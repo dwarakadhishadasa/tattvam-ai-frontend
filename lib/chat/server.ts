@@ -1,8 +1,7 @@
-const DEFAULT_CHAT_API_URL =
-  "http://127.0.0.1:8000/v1/notebooks/da406743-a373-47f9-9275-6c2e1e86c2b6/chat/ask"
+import { getDefaultExtractionChatUrl } from "@/lib/backend/endpoints"
 
 export const CHAT_BACKEND_UNAVAILABLE_MESSAGE =
-  "Chat backend is unavailable. Start the notebook service or set TATTVAM_CHAT_API_URL to a reachable endpoint."
+  "Chat backend is unavailable. Start the notebook service or set TATTVAM_NOTEBOOK_BACKEND_ORIGIN to a reachable backend origin."
 
 export class ChatBackendUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -15,33 +14,11 @@ export class ChatBackendUnavailableError extends Error {
   }
 }
 
-export function normalizeChatApiUrl(url: string): string {
-  const trimmedUrl = url.trim()
-
-  if (!trimmedUrl) {
-    return DEFAULT_CHAT_API_URL
-  }
-
-  try {
-    const parsedUrl = new URL(trimmedUrl)
-
-    if (parsedUrl.hostname === "0.0.0.0") {
-      parsedUrl.hostname = "127.0.0.1"
-    }
-
-    return parsedUrl.toString()
-  } catch {
-    return trimmedUrl
-  }
-}
-
-export function getChatApiUrl(rawUrl = process.env.TATTVAM_CHAT_API_URL): string {
-  return normalizeChatApiUrl(rawUrl?.trim() || DEFAULT_CHAT_API_URL)
-}
-
 export async function forwardChatQuestion(question: string): Promise<Response> {
+  const chatUrl = getDefaultExtractionChatUrl()
+
   try {
-    return await fetch(getChatApiUrl(), {
+    return await fetch(chatUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
