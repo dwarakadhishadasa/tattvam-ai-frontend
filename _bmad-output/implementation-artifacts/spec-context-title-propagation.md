@@ -2,7 +2,7 @@
 title: 'Context Title Propagation Across Pipeline'
 type: 'feature'
 created: '2026-03-27'
-status: 'proposed'
+status: 'review'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/data-model.md'

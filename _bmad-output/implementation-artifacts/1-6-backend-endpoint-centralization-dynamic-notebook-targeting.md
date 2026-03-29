@@ -1,6 +1,6 @@
 # Story 1.6: Backend Endpoint Centralization with Preconfigured Notebook Targets
 
-Status: review
+Status: done
 
 ## Source Artifacts
 

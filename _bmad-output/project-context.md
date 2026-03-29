@@ -1,11 +1,11 @@
 ---
 project_name: 'tattvam-ai-frontend'
 user_name: 'Dwaraka'
-date: '2026-03-26'
+date: '2026-03-29'
 sections_completed:
   - technology_stack
   - critical_implementation_rules
-existing_patterns_found: 7
+existing_patterns_found: 8
 ---
 
 # Project Context for AI Agents
@@ -70,6 +70,12 @@ Any change to raw backend payloads MUST be performed at the smallest server-owne
 
 Rationale: server-owned payload shaping localizes upstream churn, keeps browser state deterministic, prevents persistence drift, and avoids spreading backend-specific parsing rules across JSX, hooks, and restore paths.
 
+#### VIII. Centralize Backend Endpoint Construction and Targeting
+
+Backend origins, path assembly, and server-owned target selection MUST be resolved through shared builders in `lib/`, not through feature-local string literals or route-local concatenation. When multiple server adapters or routes talk to the same backend family, they MUST consume one centralized endpoint module that owns origin normalization, path encoding, required configuration validation, and target-specific URL derivation. Client code MUST stay backend-target-agnostic and MUST continue calling same-origin app routes rather than choosing notebook ids, backend origins, or provider URLs in the browser.
+
+Rationale: centralized endpoint construction prevents transport drift between features, localizes environment and host normalization rules, fails fast on misconfiguration before fetches are attempted, and keeps future backend-target changes scoped to one server-owned module.
+
 ### UI Composition and Styling Standards
 
 Use existing `components/ui` primitives and the established `cn` + `class-variance-authority` pattern before introducing new raw interaction patterns. Product-specific surfaces belong in feature modules under `components/`, not inside generic primitives. Repeated class lists, wrappers, and interaction treatments MUST be extracted instead of copied across files. Tailwind class lists SHOULD remain readable and stable, and all new UI MUST preserve semantic HTML, keyboard access, visible focus states, and reduced-motion awareness where motion is substantial.
@@ -80,12 +86,12 @@ Use existing `components/ui` primitives and the established `cn` + `class-varian
 - `components/ui/`: generic reusable primitives
 - `components/<feature>/`: product-specific UI composition
 - `hooks/`: browser-side state and effect abstractions
-- `lib/`: pure helpers, adapters, validation, config, and transformation logic
+- `lib/`: pure helpers, adapters, validation, config, transformation logic, and centralized endpoint builders
 - `types/`: shared domain types when reused across modules
 
 ### Review and Delivery Standards
 
-Specs, plans, and task lists MUST call out route-file impact, client-boundary decisions, extracted module boundaries, shared UI reuse, and the verification strategy before implementation starts. Reviewers MUST block changes that add route bloat, hide domain logic inside JSX, spread vendor logic across UI files, introduce unjustified client boundaries, expose raw backend-shaped payloads to client rendering when a route or server adapter can shape them first, or omit verification steps. Exceptions MUST be rare, explicit in the change itself, and justified in the relevant spec, plan, or review thread with the simpler alternative that was rejected.
+Specs, plans, and task lists MUST call out route-file impact, client-boundary decisions, extracted module boundaries, shared UI reuse, endpoint-ownership decisions, and the verification strategy before implementation starts. Reviewers MUST block changes that add route bloat, hide domain logic inside JSX, spread vendor logic across UI files, introduce unjustified client boundaries, expose raw backend-shaped payloads to client rendering when a route or server adapter can shape them first, duplicate backend URL literals outside a shared endpoint module, or omit verification steps. Exceptions MUST be rare, explicit in the change itself, and justified in the relevant spec, plan, or review thread with the simpler alternative that was rejected.
 
 ### Governance
 

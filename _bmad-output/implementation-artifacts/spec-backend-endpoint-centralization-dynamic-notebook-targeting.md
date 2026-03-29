@@ -2,7 +2,7 @@
 title: 'Backend Endpoint Centralization with Preconfigured Notebook Targets'
 type: 'feature'
 created: '2026-03-28'
-status: 'proposed'
+status: 'done'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/runtime-interfaces.md'

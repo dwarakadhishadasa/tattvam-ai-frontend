@@ -2,7 +2,7 @@
 title: 'Extraction Notebook Source Text Seeding'
 type: 'feature'
 created: '2026-03-27'
-status: 'proposed'
+status: 'done'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/runtime-interfaces.md'
