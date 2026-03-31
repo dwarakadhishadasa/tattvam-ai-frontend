@@ -1,4 +1,5 @@
 import type { Citation } from "@/lib/chat/shared"
+import type { SlideDeckJobState } from "@/lib/slides/shared"
 
 export type PipelineStep = 0 | 1 | 2
 
@@ -9,6 +10,9 @@ export type Message = {
   role: "user" | "assistant"
   content: string
   citations?: Citation[]
+  targetKey?: string
+  targetLabel?: string
+  status?: "complete" | "error"
 }
 
 export type NotebookEntrySourceType = "response" | "citation" | "context"
@@ -58,6 +62,13 @@ export type SessionState = {
   activeNotebookEntryId: string | null
   generatedNotebookId: string | null
   generatedSlides: string
+  slideDeckTaskId: string | null
+  slideDeckState: SlideDeckJobState
+  slideDeckError: string | null
+  slideDeckErrorCode: string | null
+  slideDeckRequestedAt: number | null
+  slideDeckLastCheckedAt: number | null
+  slideDeckCompletedAt: number | null
 }
 
 export type Session = {

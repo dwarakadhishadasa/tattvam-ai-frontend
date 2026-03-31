@@ -7,11 +7,12 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Download,
   Image as ImageIcon,
   LayoutTemplate,
   Loader2,
-  Maximize,
   Presentation,
+  RefreshCw,
   Save,
   Send,
   Settings,
@@ -19,7 +20,6 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import ReactMarkdown from "react-markdown"
 
 import { TALK_TYPE_OPTIONS } from "@/components/pipeline/constants"
 import { MessageMarkdown } from "@/components/pipeline/MessageMarkdown"
@@ -32,6 +32,7 @@ import type {
   VerseData,
   VerseDetails,
 } from "@/components/pipeline/types"
+import type { SlideDeckJobState } from "@/lib/slides/shared"
 
 type ContextStepProps = {
   talkType: TalkType
@@ -395,16 +396,38 @@ export function ExtractionStep({
                   className={`group relative max-w-[80%] ${
                     message.role === "user"
                       ? "bg-zinc-100 px-5 py-3 rounded-2xl rounded-tr-sm"
-                      : "pt-1"
+                      : message.status === "error"
+                        ? "rounded-2xl border border-red-100 bg-red-50 px-5 py-4"
+                        : "pt-1"
                   }`}
                 >
+                  {message.role === "assistant" && message.targetLabel ? (
+                    <div className="mb-3">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                          message.status === "error"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-zinc-100 text-zinc-600"
+                        }`}
+                      >
+                        {message.targetLabel}
+                      </span>
+                    </div>
+                  ) : null}
+
                   <div
                     className={`chat-content text-[15px] ${
-                      message.role === "user" ? "text-zinc-800" : "text-zinc-700"
+                      message.role === "user"
+                        ? "text-zinc-800"
+                        : message.status === "error"
+                          ? "text-red-700"
+                          : "text-zinc-700"
                     }`}
                   >
                     {message.role === "user" ? (
                       message.content
+                    ) : message.status === "error" ? (
+                      <p>{message.content}</p>
                     ) : (
                       <MessageMarkdown
                         content={message.content}
@@ -419,7 +442,7 @@ export function ExtractionStep({
                     )}
                   </div>
 
-                  {message.role === "assistant" && (
+                  {message.role === "assistant" && message.status !== "error" && (
                     <div className="mt-6 flex items-center gap-3">
                       <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -712,30 +735,40 @@ export function ExtractionStep({
 type PresentationStepProps = {
   notebookName: string
   extractedStyle: string
-  generatedSlides: string
-  slides: string[]
-  slidesContainerRef: RefObject<HTMLDivElement | null>
-  isGeneratingSlides: boolean
-  isFullscreen: boolean
-  currentSlideIndex: number
-  onGenerateSlides: () => void
-  onClearSlides: () => void
-  onToggleFullscreen: () => void
+  slideDeckTaskId: string | null
+  slideDeckState: SlideDeckJobState
+  slideDeckError: string | null
+  slideDeckErrorCode: string | null
+  requestedAtLabel: string | null
+  lastCheckedAtLabel: string | null
+  nextCheckAtLabel: string | null
+  completedAtLabel: string | null
+  isStartingSlideDeck: boolean
+  canBuildPowerPoint: boolean
+  onBuildPowerPoint: () => void
+  onRetryBuild: () => void
+  onDownloadPowerPoint: () => void
 }
 
 export function PresentationStep({
   notebookName,
   extractedStyle,
-  generatedSlides,
-  slides,
-  slidesContainerRef,
-  isGeneratingSlides,
-  isFullscreen,
-  currentSlideIndex,
-  onGenerateSlides,
-  onClearSlides,
-  onToggleFullscreen,
+  slideDeckTaskId,
+  slideDeckState,
+  slideDeckError,
+  slideDeckErrorCode,
+  requestedAtLabel,
+  lastCheckedAtLabel,
+  nextCheckAtLabel,
+  completedAtLabel,
+  isStartingSlideDeck,
+  canBuildPowerPoint,
+  onBuildPowerPoint,
+  onRetryBuild,
+  onDownloadPowerPoint,
 }: PresentationStepProps) {
+  const isWaiting = slideDeckState === "pending" || slideDeckState === "inProgress"
+
   return (
     <motion.div
       key="step3"
@@ -746,127 +779,143 @@ export function PresentationStep({
       className="h-full flex p-6"
     >
       <div className="flex-1 bg-white rounded-3xl border border-zinc-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden relative">
-        {!generatedSlides ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-            <div className="w-20 h-20 bg-zinc-50 border border-zinc-100 rounded-3xl flex items-center justify-center mb-6">
-              <Presentation className="w-10 h-10 text-zinc-300" />
+        <div className="flex-1 flex items-center justify-center bg-zinc-50/50 p-8">
+          <div className="w-full max-w-3xl rounded-[2rem] border border-zinc-200 bg-white p-10 shadow-sm">
+            <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-zinc-100 bg-zinc-50">
+              {slideDeckState === "completed" ? (
+                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+              ) : slideDeckState === "failed" ? (
+                <X className="h-10 w-10 text-red-400" />
+              ) : isWaiting || isStartingSlideDeck ? (
+                <Loader2 className="h-10 w-10 animate-spin text-zinc-400" />
+              ) : (
+                <Presentation className="h-10 w-10 text-zinc-300" />
+              )}
             </div>
-            <h3 className="text-2xl font-bold text-zinc-900 tracking-tight mb-3">
-              Ready to Generate Deck
-            </h3>
-            <p className="text-zinc-500 max-w-md mb-8 leading-relaxed">
-              We&apos;ll use the content from <strong className="text-zinc-900">&quot;{notebookName}&quot;</strong>{" "}
-              and apply your extracted visual style to generate a structured slide deck.
-            </p>
 
-            {!extractedStyle && (
-              <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 text-amber-800 text-sm max-w-sm mx-auto">
-                <Settings className="w-4 h-4 shrink-0" />
+            <div className="text-center">
+              <h3 className="text-3xl font-bold tracking-tight text-zinc-900">
+                {slideDeckState === "completed"
+                  ? "PowerPoint Ready"
+                  : slideDeckState === "failed"
+                    ? "Build Needs Attention"
+                    : slideDeckState === "pending"
+                      ? "PowerPoint Queued"
+                      : slideDeckState === "inProgress" || isStartingSlideDeck
+                        ? "Building PowerPoint"
+                        : "Ready to Build PowerPoint"}
+              </h3>
+              <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
+                {slideDeckState === "completed"
+                  ? `Your deck for "${notebookName}" is ready to download.`
+                  : slideDeckState === "failed"
+                    ? "The last build did not complete. You can retry the same notebook with the current visual instructions."
+                  : isWaiting || isStartingSlideDeck
+                      ? `We're generating a .pptx deck from "${notebookName}". You can stay on this page or come back later and we'll keep checking in about a minute.`
+                      : `We'll use the content from "${notebookName}" and your extracted visual instructions to build a downloadable .pptx deck.`}
+              </p>
+            </div>
+
+            {!extractedStyle && slideDeckState === "idle" && (
+              <div className="mx-auto mt-8 flex max-w-lg items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                <Settings className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
-                  No visual style extracted yet. You can set this in <strong>Visual Settings</strong>{" "}
-                  for better results.
+                  No visual style extracted yet. Add one in <strong>Visual Settings</strong> before
+                  starting the PowerPoint build.
                 </p>
               </div>
             )}
 
-            <button
-              onClick={onGenerateSlides}
-              disabled={isGeneratingSlides || !extractedStyle}
-              className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-4 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
-            >
-              {isGeneratingSlides ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating Slides...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Generate Slide Deck
-                </>
+            <div className="mt-8 grid gap-3 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-5 text-left text-sm text-zinc-600">
+              {slideDeckTaskId && (
+                <p>
+                  <span className="font-semibold text-zinc-900">Task ID:</span> {slideDeckTaskId}
+                </p>
               )}
-            </button>
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col h-full bg-zinc-50/50">
-            <div className="p-6 border-b border-zinc-100 bg-white flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-zinc-900">Generated Deck</h3>
-                <p className="text-sm text-zinc-500">Preview your slides below</p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={onClearSlides}
-                  className="px-4 py-2 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
-                >
-                  Regenerate
-                </button>
-                <button
-                  onClick={onToggleFullscreen}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
-                >
-                  <Maximize className="w-4 h-4" />
-                  Present Fullscreen
-                </button>
-                <button
-                  onClick={() => alert("PPTX export functionality would be integrated here.")}
-                  className="px-4 py-2 text-sm font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors shadow-sm"
-                >
-                  Export to PPTX
-                </button>
-              </div>
+              {requestedAtLabel && (
+                <p>
+                  <span className="font-semibold text-zinc-900">Requested:</span> {requestedAtLabel}
+                </p>
+              )}
+              {lastCheckedAtLabel && (
+                <p>
+                  <span className="font-semibold text-zinc-900">Last checked:</span>{" "}
+                  {lastCheckedAtLabel}
+                </p>
+              )}
+              {nextCheckAtLabel && isWaiting && (
+                <p>
+                  <span className="font-semibold text-zinc-900">Next check:</span> around{" "}
+                  {nextCheckAtLabel}
+                </p>
+              )}
+              {completedAtLabel && slideDeckState === "completed" && (
+                <p>
+                  <span className="font-semibold text-zinc-900">Completed:</span>{" "}
+                  {completedAtLabel}
+                </p>
+              )}
+              {slideDeckError && (
+                <p className="text-red-600">
+                  <span className="font-semibold text-red-700">Error:</span> {slideDeckError}
+                  {slideDeckErrorCode ? ` (${slideDeckErrorCode})` : ""}
+                </p>
+              )}
             </div>
 
-            <div
-              ref={slidesContainerRef}
-              className={`flex-1 overflow-y-auto hide-scrollbar bg-zinc-50 ${
-                isFullscreen
-                  ? "flex items-center justify-center bg-zinc-900 overflow-hidden"
-                  : "p-8 space-y-8"
-              }`}
-            >
-              {isFullscreen ? (
-                <div className="w-full h-full flex items-center justify-center p-4 md:p-12">
-                  {slides[currentSlideIndex] && (
-                    <motion.div
-                      key={currentSlideIndex}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3 }}
-                      className="aspect-[16/9] w-full max-w-7xl bg-white rounded-2xl shadow-2xl p-12 md:p-24 flex flex-col justify-center relative overflow-hidden"
-                    >
-                      <div className="absolute top-8 right-12 text-zinc-400 font-mono text-lg">
-                        {currentSlideIndex + 1} / {slides.length}
-                      </div>
-                      <div className="slide-content max-w-5xl mx-auto w-full scale-125 origin-left">
-                        <ReactMarkdown>{slides[currentSlideIndex]}</ReactMarkdown>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              {slideDeckState === "completed" ? (
+                <>
+                  <button
+                    onClick={onDownloadPowerPoint}
+                    className="flex items-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-zinc-800"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download .pptx
+                  </button>
+                  <button
+                    onClick={onRetryBuild}
+                    className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-6 py-3 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Rebuild PowerPoint
+                  </button>
+                </>
+              ) : slideDeckState === "failed" ? (
+                <button
+                  onClick={onRetryBuild}
+                  className="flex items-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-zinc-800"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Retry Build
+                </button>
               ) : (
-                <div className="max-w-4xl mx-auto space-y-12">
-                  {slides.map((slideContent, index) => (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      key={`${index}-${slideContent.substring(0, 20)}`}
-                      className="aspect-[16/9] bg-white border border-zinc-200 rounded-2xl shadow-sm p-12 flex flex-col justify-center relative overflow-hidden group"
-                    >
-                      <div className="absolute top-6 right-8 text-zinc-300 font-mono text-sm">
-                        {index + 1}
-                      </div>
-                      <div className="slide-content max-w-3xl">
-                        <ReactMarkdown>{slideContent}</ReactMarkdown>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
+                <button
+                  onClick={onBuildPowerPoint}
+                  disabled={!canBuildPowerPoint || isStartingSlideDeck || isWaiting}
+                  className="flex items-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isStartingSlideDeck ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Starting Build...
+                    </>
+                  ) : isWaiting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Waiting for Next Check
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Build PowerPoint
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </motion.div>
   )

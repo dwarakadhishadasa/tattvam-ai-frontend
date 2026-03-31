@@ -59,6 +59,9 @@ Represents one entry in the extraction conversation.
 | `role` | `'user' | 'assistant'` | Message author |
 | `content` | `string` | Markdown-capable text rendered in chat |
 | `citations` | `Citation[] | undefined` | Optional structured citations attached to assistant messages |
+| `targetKey` | `string | undefined` | Optional stable extraction-target key for streamed assistant messages |
+| `targetLabel` | `string | undefined` | Optional user-facing extraction-target label for streamed assistant messages |
+| `status` | `'complete' | 'error' | undefined` | Optional streamed assistant completion state |
 
 ### 4. Citation
 

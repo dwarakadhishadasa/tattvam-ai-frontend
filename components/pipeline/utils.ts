@@ -38,6 +38,13 @@ export function createEmptySessionState(): SessionState {
     activeNotebookEntryId: null,
     generatedNotebookId: null,
     generatedSlides: "",
+    slideDeckTaskId: null,
+    slideDeckState: "idle",
+    slideDeckError: null,
+    slideDeckErrorCode: null,
+    slideDeckRequestedAt: null,
+    slideDeckLastCheckedAt: null,
+    slideDeckCompletedAt: null,
   }
 }
 

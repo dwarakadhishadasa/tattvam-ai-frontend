@@ -4,6 +4,7 @@ import {
   CHAT_BACKEND_UNAVAILABLE_MESSAGE,
   ChatBackendUnavailableError,
   forwardChatQuestion,
+  forwardChatQuestionToNotebook,
 } from "../../lib/chat/server"
 import * as backendEndpoints from "../../lib/backend/endpoints"
 
@@ -59,5 +60,29 @@ describe("chat server transport failures", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ChatBackendUnavailableError)
     }
+  })
+
+  it("builds per-target notebook chat URLs through the shared endpoint helper", async () => {
+    const endpointSpy = vi
+      .spyOn(backendEndpoints, "getNotebookChatUrl")
+      .mockReturnValue("http://127.0.0.1:8000/v1/notebooks/target-id/chat/ask")
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+
+    await forwardChatQuestionToNotebook("hello", " target-id ")
+
+    expect(endpointSpy).toHaveBeenCalledWith(" target-id ")
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/v1/notebooks/target-id/chat/ask",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: "hello" }),
+        cache: "no-store",
+      },
+    )
   })
 })

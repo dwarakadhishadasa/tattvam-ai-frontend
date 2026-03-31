@@ -1,4 +1,7 @@
-import { getDefaultExtractionChatUrl } from "@/lib/backend/endpoints"
+import { getDefaultExtractionChatUrl, getNotebookChatUrl } from "@/lib/backend/endpoints"
+import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
+import type { NormalizedChatResult } from "@/lib/chat/shared"
+import type { ExtractionChatTarget } from "@/lib/chat/targets"
 
 export const CHAT_BACKEND_UNAVAILABLE_MESSAGE =
   "Chat backend is unavailable. Start the notebook service or set TATTVAM_NOTEBOOK_BACKEND_ORIGIN to a reachable backend origin."
@@ -15,8 +18,91 @@ export class ChatBackendUnavailableError extends Error {
 }
 
 export async function forwardChatQuestion(question: string): Promise<Response> {
-  const chatUrl = getDefaultExtractionChatUrl()
+  return forwardChatRequest(question, getDefaultExtractionChatUrl())
+}
 
+export async function forwardChatQuestionToNotebook(
+  question: string,
+  notebookId: string,
+): Promise<Response> {
+  return forwardChatRequest(question, getNotebookChatUrl(notebookId))
+}
+
+export async function forwardChatQuestionToTarget(
+  question: string,
+  target: Pick<ExtractionChatTarget, "notebookId">,
+): Promise<Response> {
+  return forwardChatQuestionToNotebook(question, target.notebookId)
+}
+
+export class ChatBackendResponseError extends Error {
+  status: number
+
+  constructor(message: string, status: number, options?: { cause?: unknown }) {
+    super(message)
+    this.name = "ChatBackendResponseError"
+    this.status = status
+
+    if (options && "cause" in options) {
+      this.cause = options.cause
+    }
+  }
+}
+
+export async function requestNormalizedChatResult(
+  question: string,
+  notebookId: string,
+): Promise<NormalizedChatResult> {
+  const backendResponse = await forwardChatQuestionToNotebook(question, notebookId)
+  const data = await readChatResponseBody(backendResponse)
+
+  if (!backendResponse.ok) {
+    const errorPayload =
+      typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {}
+
+    throw new ChatBackendResponseError(
+      getDownstreamChatErrorMessage(errorPayload),
+      backendResponse.status,
+    )
+  }
+
+  const normalizedResponse = normalizeDownstreamChatResponse(
+    data as Parameters<typeof normalizeDownstreamChatResponse>[0],
+  )
+
+  if (!normalizedResponse) {
+    throw new ChatBackendResponseError(
+      "Malformed chat response from the notebook backend",
+      502,
+    )
+  }
+
+  return normalizedResponse.result
+}
+
+export async function readChatResponseBody(response: Response): Promise<unknown> {
+  const rawText = await response.text()
+
+  if (!rawText) {
+    return null
+  }
+
+  return JSON.parse(rawText) as unknown
+}
+
+export function getDownstreamChatErrorMessage(data: Record<string, unknown>): string {
+  if (typeof data.error === "string" && data.error.trim()) {
+    return data.error
+  }
+
+  if (typeof data.detail === "string" && data.detail.trim()) {
+    return data.detail
+  }
+
+  return "Failed to fetch chat response from the notebook backend"
+}
+
+async function forwardChatRequest(question: string, chatUrl: string): Promise<Response> {
   try {
     return await fetch(chatUrl, {
       method: "POST",

@@ -110,6 +110,78 @@ describe("browser persistence schema", () => {
 
     expect(parsedIndex).toEqual([{ id: "session-1", title: "Valid", updatedAt: 100 }])
   })
+
+  it("preserves pptx job tracking fields during restore", () => {
+    const rawValue = JSON.stringify([
+      {
+        ...createSession("session-1", "Recovered Session", 100),
+        state: {
+          ...createState(),
+          generatedNotebookId: "nb_123",
+          slideDeckTaskId: "task-123",
+          slideDeckState: "inProgress",
+          slideDeckError: null,
+          slideDeckErrorCode: null,
+          slideDeckRequestedAt: 90,
+          slideDeckLastCheckedAt: 95,
+          slideDeckCompletedAt: null,
+        },
+      },
+    ])
+
+    const result = readLegacySessions(rawValue)
+
+    expect(result.sessions[0]?.state.slideDeckTaskId).toBe("task-123")
+    expect(result.sessions[0]?.state.slideDeckState).toBe("inProgress")
+    expect(result.sessions[0]?.state.slideDeckRequestedAt).toBe(90)
+    expect(result.sessions[0]?.state.slideDeckLastCheckedAt).toBe(95)
+    expect(result.sessions[0]?.state.slideDeckCompletedAt).toBeNull()
+  })
+
+  it("defaults missing pptx job fields for older sessions", () => {
+    const result = readLegacySessions(JSON.stringify([createSession("session-1", "Recovered", 100)]))
+
+    expect(result.sessions[0]?.state.slideDeckTaskId).toBeNull()
+    expect(result.sessions[0]?.state.slideDeckState).toBe("idle")
+    expect(result.sessions[0]?.state.slideDeckError).toBeNull()
+    expect(result.sessions[0]?.state.slideDeckRequestedAt).toBeNull()
+  })
+
+  it("preserves target metadata on restored assistant messages while keeping older messages valid", () => {
+    const rawValue = JSON.stringify([
+      {
+        ...createSession("session-1", "Recovered Session", 100),
+        state: {
+          ...createState(),
+          messages: [
+            { id: "legacy-message", role: "assistant", content: "Legacy response" },
+            {
+              id: "streamed-message",
+              role: "assistant",
+              content: "Streamed response",
+              targetKey: "Bhaktivedanta NotebookLM",
+              targetLabel: "From Srila Prabhupad's books",
+              status: "complete",
+            },
+          ],
+        },
+      },
+    ])
+
+    const result = readLegacySessions(rawValue)
+
+    expect(result.sessions[0]?.state.messages).toEqual([
+      { id: "legacy-message", role: "assistant", content: "Legacy response" },
+      {
+        id: "streamed-message",
+        role: "assistant",
+        content: "Streamed response",
+        targetKey: "Bhaktivedanta NotebookLM",
+        targetLabel: "From Srila Prabhupad's books",
+        status: "complete",
+      },
+    ])
+  })
 })
 
 describe("local session index helpers", () => {
@@ -153,6 +225,13 @@ function createState(): SessionState {
     activeNotebookEntryId: null,
     generatedNotebookId: null,
     generatedSlides: "",
+    slideDeckTaskId: null,
+    slideDeckState: "idle",
+    slideDeckError: null,
+    slideDeckErrorCode: null,
+    slideDeckRequestedAt: null,
+    slideDeckLastCheckedAt: null,
+    slideDeckCompletedAt: null,
   }
 }
 

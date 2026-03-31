@@ -2,10 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { POST } from "../../app/api/chat/route"
 
-vi.mock("../../lib/chat/server", () => ({
-  ChatBackendUnavailableError: class ChatBackendUnavailableError extends Error {},
-  forwardChatQuestion: vi.fn(),
-}))
+vi.mock("../../lib/chat/server", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/chat/server")>(
+    "../../lib/chat/server",
+  )
+
+  return {
+    ...actual,
+    ChatBackendUnavailableError: class ChatBackendUnavailableError extends Error {},
+    forwardChatQuestion: vi.fn(),
+  }
+})
 
 import { forwardChatQuestion } from "../../lib/chat/server"
 

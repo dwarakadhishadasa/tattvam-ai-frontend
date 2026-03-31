@@ -5,7 +5,11 @@ import {
   NotebookBackendConfigurationError,
   getDefaultExtractionChatNotebookId,
   getDefaultExtractionChatUrl,
+  getNotebookArtifactDownloadUrl,
+  getNotebookArtifactGenerateUrl,
+  getNotebookArtifactTaskUrl,
   getNotebookBackendOrigin,
+  getNotebookChatUrl,
   getNotebookSetSourceUrl,
   getNotebooksUrl,
 } from "../../lib/backend/endpoints"
@@ -40,6 +44,18 @@ describe("backend endpoint builders", () => {
     expect(getDefaultExtractionChatUrl()).toBe(
       "http://backend.internal:9000/v1/notebooks/extraction-chat/chat/ask",
     )
+    expect(getNotebookChatUrl(" notebook target ")).toBe(
+      "http://backend.internal:9000/v1/notebooks/notebook%20target/chat/ask",
+    )
+    expect(getNotebookArtifactGenerateUrl(" notebook target ")).toBe(
+      "http://backend.internal:9000/v1/notebooks/notebook%20target/artifacts/generate",
+    )
+    expect(getNotebookArtifactTaskUrl(" notebook target ", " task-123 ")).toBe(
+      "http://backend.internal:9000/v1/notebooks/notebook%20target/artifacts/tasks/task-123?wait=false",
+    )
+    expect(getNotebookArtifactDownloadUrl(" notebook target ", " task-123 ")).toBe(
+      "http://backend.internal:9000/v1/notebooks/notebook%20target/artifacts/download?type=slide_deck&artifact_id=task-123&output_format=pptx",
+    )
   })
 
   it("rejects malformed backend origins before any fetch can occur", () => {
@@ -54,6 +70,17 @@ describe("backend endpoint builders", () => {
   it("rejects blank per-call notebook ids after trimming", () => {
     expect(() => getNotebookSetSourceUrl("   ")).toThrowError(NotebookBackendConfigurationError)
     expect(() => getNotebookSetSourceUrl("   ")).toThrowError("Notebook id is required")
+    expect(() => getNotebookChatUrl("   ")).toThrowError("Notebook id is required")
+    expect(() => getNotebookArtifactGenerateUrl("   ")).toThrowError("Notebook id is required")
+  })
+
+  it("rejects blank per-call task ids after trimming", () => {
+    expect(() => getNotebookArtifactTaskUrl("notebook-1", "   ")).toThrowError(
+      NotebookBackendConfigurationError,
+    )
+    expect(() => getNotebookArtifactDownloadUrl("notebook-1", "   ")).toThrowError(
+      "Task id is required",
+    )
   })
 
   it("rejects missing extraction chat notebook ids after trimming", () => {

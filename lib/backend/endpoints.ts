@@ -71,13 +71,56 @@ export function getDefaultExtractionChatNotebookId(
 }
 
 export function getDefaultExtractionChatUrl(): string {
+  return getNotebookChatUrl(getDefaultExtractionChatNotebookId())
+}
+
+export function getNotebookChatUrl(notebookId: string): string {
+  return buildNotebookUrl(["v1", "notebooks", getRequiredNotebookId(notebookId), "chat", "ask"])
+}
+
+export function getNotebookArtifactGenerateUrl(notebookId: string): string {
   return buildNotebookUrl([
     "v1",
     "notebooks",
-    getDefaultExtractionChatNotebookId(),
-    "chat",
-    "ask",
+    getRequiredNotebookId(notebookId),
+    "artifacts",
+    "generate",
   ])
+}
+
+export function getNotebookArtifactTaskUrl(notebookId: string, taskId: string): string {
+  const url = new URL(
+    buildNotebookUrl([
+      "v1",
+      "notebooks",
+      getRequiredNotebookId(notebookId),
+      "artifacts",
+      "tasks",
+      getRequiredTaskId(taskId),
+    ]),
+  )
+
+  url.searchParams.set("wait", "false")
+
+  return url.toString()
+}
+
+export function getNotebookArtifactDownloadUrl(notebookId: string, taskId: string): string {
+  const url = new URL(
+    buildNotebookUrl([
+      "v1",
+      "notebooks",
+      getRequiredNotebookId(notebookId),
+      "artifacts",
+      "download",
+    ]),
+  )
+
+  url.searchParams.set("type", "slide_deck")
+  url.searchParams.set("artifact_id", getRequiredTaskId(taskId))
+  url.searchParams.set("output_format", "pptx")
+
+  return url.toString()
 }
 
 function buildNotebookUrl(pathSegments: string[]): string {
@@ -95,6 +138,16 @@ function getRequiredNotebookId(notebookId: string): string {
   }
 
   return trimmedNotebookId
+}
+
+function getRequiredTaskId(taskId: string): string {
+  const trimmedTaskId = taskId.trim()
+
+  if (!trimmedTaskId) {
+    throw new NotebookBackendConfigurationError("Task id is required")
+  }
+
+  return trimmedTaskId
 }
 
 function trimTrailingSlash(pathname: string): string {

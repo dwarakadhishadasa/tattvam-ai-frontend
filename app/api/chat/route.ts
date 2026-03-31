@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { isNotebookBackendConfigurationError } from "@/lib/backend/endpoints"
+import {
+  ChatBackendResponseError,
+  ChatBackendUnavailableError,
+  forwardChatQuestion,
+  getDownstreamChatErrorMessage,
+  readChatResponseBody,
+} from "@/lib/chat/server"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
-import { ChatBackendUnavailableError, forwardChatQuestion } from "@/lib/chat/server"
 
 export const runtime = "nodejs"
 
@@ -16,8 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const backendResponse = await forwardChatQuestion(question)
-    const rawText = await backendResponse.text()
-    const data = rawText ? (JSON.parse(rawText) as unknown) : null
+    const data = await readChatResponseBody(backendResponse)
 
     if (!backendResponse.ok) {
       const errorPayload =
@@ -25,7 +30,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: getErrorMessage(errorPayload),
+          error: getDownstreamChatErrorMessage(errorPayload),
         },
         { status: backendResponse.status },
       )
@@ -52,19 +57,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 502 })
     }
 
+    if (error instanceof ChatBackendResponseError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     const message = error instanceof Error ? error.message : "Unexpected chat proxy failure"
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
-
-function getErrorMessage(data: Record<string, unknown>): string {
-  if (typeof data.error === "string" && data.error.trim()) {
-    return data.error
-  }
-
-  if (typeof data.detail === "string" && data.detail.trim()) {
-    return data.detail
-  }
-
-  return "Failed to fetch chat response from the notebook backend"
 }

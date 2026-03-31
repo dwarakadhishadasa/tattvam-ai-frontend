@@ -207,6 +207,54 @@ On backend chat failure, the page appends:
 }
 ```
 
+## 5A. Extraction Chat Streaming Contract
+
+The multi-target extraction workflow also exposes:
+
+`POST /api/chat/stream`
+
+### Input
+
+```json
+{
+  "question": "What are the main teachings on envy?"
+}
+```
+
+### Request Notes
+
+- The browser still sends only `{ question }`.
+- Notebook ids stay server-owned inside `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON`.
+- The server resolves exactly four approved extraction targets before any downstream fetch begins.
+
+### Success Response
+
+The route responds as `text/event-stream` with named events:
+
+```text
+event: target.completed
+data: {"target":{"key":"Bhaktivedanta NotebookLM","label":"From Srila Prabhupad's books"},"result":{"answerBody":"Markdown-capable answer","citations":[],"conversationId":"abc","turnNumber":1,"isFollowUp":false}}
+
+event: target.failed
+data: {"target":{"key":"Srila Prabhupada Audio Transcripts","label":"From Srila Prabhupad's audio transcripts"},"error":"Notebook target unavailable"}
+
+event: chat.completed
+data: {"totalTargets":4,"completedTargets":3,"failedTargets":1}
+```
+
+### Error Responses
+
+| Status | Shape | Meaning |
+|--------|-------|---------|
+| `400` | `{ "error": "Question is required" }` | Blank question rejected before streaming |
+| `500` | `{ "error": "<message>" }` | Invalid target registry or backend misconfiguration before streaming |
+
+### Notes
+
+- Target events may arrive out of order.
+- The route emits one `target.completed` or `target.failed` event per approved target.
+- The route always ends with one `chat.completed` event after all targets settle.
+
 ## 6. Notebook Compilation Contract
 
 There is no backend notebook API in the active flow.

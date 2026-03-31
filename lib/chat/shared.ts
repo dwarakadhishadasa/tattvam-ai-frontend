@@ -24,6 +24,33 @@ export type ChatRouteErrorResponse = {
   detail?: unknown
 }
 
+export type ChatTargetDescriptor = {
+  key: string
+  label: string
+}
+
+export type ChatTargetCompletedEvent = {
+  target: ChatTargetDescriptor
+  result: NormalizedChatResult
+}
+
+export type ChatTargetFailedEvent = {
+  target: ChatTargetDescriptor
+  error: string
+}
+
+export type ChatCompletedEvent = {
+  totalTargets: number
+  completedTargets: number
+  failedTargets: number
+}
+
+export type ChatStreamEventMap = {
+  "target.completed": ChatTargetCompletedEvent
+  "target.failed": ChatTargetFailedEvent
+  "chat.completed": ChatCompletedEvent
+}
+
 export { stripCitationAppendix }
 
 export function formatAssistantAnswer(answerBody: string): string {

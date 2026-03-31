@@ -27,6 +27,14 @@ import type {
   VerseData,
 } from "@/components/pipeline/types"
 import {
+  createEmptySlideDeckState,
+  createFailedSlideDeckState,
+  getNextSlideDeckPollAt,
+  isSlideDeckJobActive,
+  mergeSlideDeckJobIntoSessionState,
+  SLIDE_DECK_POLL_INTERVAL_MS,
+} from "@/components/pipeline/slideDeck"
+import {
   appendNotebookEntry,
   buildNotebookCompileSource,
   buildLectureVerseData,
@@ -40,18 +48,18 @@ import {
   getRequiredWordCount,
   hasMeaningfulSessionData,
   removeNotebookEntry,
-  splitSlides,
   updateNotebookEntryContent,
 } from "@/components/pipeline/utils"
 import { useSessionPersistence } from "@/hooks/useSessionPersistence"
 import { ENVY_DEMO_RESPONSE } from "@/lib/chat/demo-response"
-import { askChatQuestion } from "@/lib/chat/client"
+import { streamChatQuestion } from "@/lib/chat/client"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import {
   formatAssistantAnswer,
   stripCitationAppendix,
   type Citation,
 } from "@/lib/chat/shared"
+import type { SlideDeckJobResponse } from "@/lib/slides/shared"
 import type { CreateNotebookResponse } from "@/lib/notebooks/shared"
 
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), {
@@ -81,8 +89,8 @@ export default function PipelinePageClient() {
   const [savedSnippets, setSavedSnippets] = useState<SavedSnippet[]>([])
   const [isChatting, setIsChatting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const slidesContainerRef = useRef<HTMLDivElement>(null)
   const contextRequestIdRef = useRef(0)
+  const previousSlideDeckStateRef = useRef<SessionState["slideDeckState"]>("idle")
   const [activeCitation, setActiveCitation] = useState<ActiveCitationSelection | null>(null)
 
   const [notebookName, setNotebookName] = useState("")
@@ -94,16 +102,20 @@ export default function PipelinePageClient() {
 
   const [slideImage, setSlideImage] = useState<string | null>(null)
   const [extractedStyle, setExtractedStyle] = useState("")
-  const [isGeneratingSlides, setIsGeneratingSlides] = useState(false)
   const [generatedSlides, setGeneratedSlides] = useState("")
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [isStartingSlideDeck, setIsStartingSlideDeck] = useState(false)
+  const [slideDeckTaskId, setSlideDeckTaskId] = useState<string | null>(null)
+  const [slideDeckState, setSlideDeckState] = useState<SessionState["slideDeckState"]>("idle")
+  const [slideDeckError, setSlideDeckError] = useState<string | null>(null)
+  const [slideDeckErrorCode, setSlideDeckErrorCode] = useState<string | null>(null)
+  const [slideDeckRequestedAt, setSlideDeckRequestedAt] = useState<number | null>(null)
+  const [slideDeckLastCheckedAt, setSlideDeckLastCheckedAt] = useState<number | null>(null)
+  const [slideDeckCompletedAt, setSlideDeckCompletedAt] = useState<number | null>(null)
 
   const [isContextModalOpen, setIsContextModalOpen] = useState(false)
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
-  const slides = useMemo(() => splitSlides(generatedSlides), [generatedSlides])
   const wordCount = useMemo(() => countSnippetWords(savedSnippets), [savedSnippets])
   const canCompile = useMemo(() => canCompileNotebook(savedSnippets), [savedSnippets])
   const notebookReadiness = useMemo(
@@ -130,6 +142,13 @@ export default function PipelinePageClient() {
       activeNotebookEntryId,
       generatedNotebookId,
       generatedSlides,
+      slideDeckTaskId,
+      slideDeckState,
+      slideDeckError,
+      slideDeckErrorCode,
+      slideDeckRequestedAt,
+      slideDeckLastCheckedAt,
+      slideDeckCompletedAt,
     }),
     [
       activeStep,
@@ -145,6 +164,13 @@ export default function PipelinePageClient() {
       activeNotebookEntryId,
       generatedNotebookId,
       generatedSlides,
+      slideDeckTaskId,
+      slideDeckState,
+      slideDeckError,
+      slideDeckErrorCode,
+      slideDeckRequestedAt,
+      slideDeckLastCheckedAt,
+      slideDeckCompletedAt,
     ],
   )
 
@@ -177,12 +203,18 @@ export default function PipelinePageClient() {
     )
     setGeneratedNotebookId(sessionState.generatedNotebookId)
     setGeneratedSlides(sessionState.generatedSlides)
+    setSlideDeckTaskId(sessionState.slideDeckTaskId)
+    setSlideDeckState(sessionState.slideDeckState)
+    setSlideDeckError(sessionState.slideDeckError)
+    setSlideDeckErrorCode(sessionState.slideDeckErrorCode)
+    setSlideDeckRequestedAt(sessionState.slideDeckRequestedAt)
+    setSlideDeckLastCheckedAt(sessionState.slideDeckLastCheckedAt)
+    setSlideDeckCompletedAt(sessionState.slideDeckCompletedAt)
     setInputMessage("")
     setContextError(null)
     setNotebookGenerationError(null)
     setActiveCitation(null)
     setIsContextModalOpen(false)
-    setCurrentSlideIndex(0)
   }, [])
 
   const {
@@ -221,39 +253,6 @@ export default function PipelinePageClient() {
   }, [messages])
 
   useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement))
-      if (!document.fullscreenElement) {
-        setCurrentSlideIndex(0)
-      }
-    }
-
-    document.addEventListener("fullscreenchange", onFullscreenChange)
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange)
-  }, [])
-
-  useEffect(() => {
-    if (!isFullscreen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (slides.length === 0) {
-        return
-      }
-
-      if (event.key === "ArrowRight" || event.key === " ") {
-        setCurrentSlideIndex((previousIndex) => Math.min(previousIndex + 1, slides.length - 1))
-      } else if (event.key === "ArrowLeft") {
-        setCurrentSlideIndex((previousIndex) => Math.max(previousIndex - 1, 0))
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isFullscreen, slides.length])
-
-  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setActiveCitation(null)
@@ -266,6 +265,80 @@ export default function PipelinePageClient() {
 
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [activeCitation])
+
+  const applySlideDeckState = useCallback(
+    (nextState: ReturnType<typeof createEmptySlideDeckState>) => {
+      setSlideDeckTaskId(nextState.slideDeckTaskId)
+      setSlideDeckState(nextState.slideDeckState)
+      setSlideDeckError(nextState.slideDeckError)
+      setSlideDeckErrorCode(nextState.slideDeckErrorCode)
+      setSlideDeckRequestedAt(nextState.slideDeckRequestedAt)
+      setSlideDeckLastCheckedAt(nextState.slideDeckLastCheckedAt)
+      setSlideDeckCompletedAt(nextState.slideDeckCompletedAt)
+    },
+    [],
+  )
+
+  const clearSlideDeckState = useCallback(() => {
+    applySlideDeckState(createEmptySlideDeckState())
+  }, [applySlideDeckState])
+
+  const applySlideDeckJobResult = useCallback(
+    (job: SlideDeckJobResponse["job"], checkedAt: number) => {
+      applySlideDeckState(
+        mergeSlideDeckJobIntoSessionState(
+          {
+            slideDeckTaskId,
+            slideDeckState,
+            slideDeckError,
+            slideDeckErrorCode,
+            slideDeckRequestedAt,
+            slideDeckLastCheckedAt,
+            slideDeckCompletedAt,
+          },
+          job,
+          checkedAt,
+        ),
+      )
+    },
+    [
+      applySlideDeckState,
+      slideDeckCompletedAt,
+      slideDeckError,
+      slideDeckErrorCode,
+      slideDeckLastCheckedAt,
+      slideDeckRequestedAt,
+      slideDeckState,
+      slideDeckTaskId,
+    ],
+  )
+
+  const canBuildPowerPoint = useMemo(
+    () => Boolean(generatedNotebookId && extractedStyle.trim()),
+    [generatedNotebookId, extractedStyle],
+  )
+
+  const nextSlideDeckPollAt = useMemo(
+    () => getNextSlideDeckPollAt(slideDeckRequestedAt, slideDeckLastCheckedAt),
+    [slideDeckLastCheckedAt, slideDeckRequestedAt],
+  )
+
+  const requestedAtLabel = useMemo(
+    () => formatTimestamp(slideDeckRequestedAt),
+    [slideDeckRequestedAt],
+  )
+  const lastCheckedAtLabel = useMemo(
+    () => formatTimestamp(slideDeckLastCheckedAt),
+    [slideDeckLastCheckedAt],
+  )
+  const nextCheckAtLabel = useMemo(
+    () => formatTimestamp(nextSlideDeckPollAt),
+    [nextSlideDeckPollAt],
+  )
+  const completedAtLabel = useMemo(
+    () => formatTimestamp(slideDeckCompletedAt),
+    [slideDeckCompletedAt],
+  )
 
   async function handleFetchContext() {
     if (!talkType) {
@@ -319,14 +392,16 @@ export default function PipelinePageClient() {
   }
 
   async function handleSendMessage() {
-    if (!inputMessage.trim()) {
+    const question = inputMessage.trim()
+
+    if (!question) {
       return
     }
 
     const newUserMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: inputMessage,
+      content: question,
     }
 
     setMessages((previousMessages) => [...previousMessages, newUserMessage])
@@ -334,7 +409,7 @@ export default function PipelinePageClient() {
     setIsChatting(true)
 
     try {
-      if (newUserMessage.content.toLowerCase().includes("envy")) {
+      if (question.toLowerCase().includes("envy")) {
         const parsedDemoResponse = normalizeDownstreamChatResponse(ENVY_DEMO_RESPONSE)
 
         if (parsedDemoResponse) {
@@ -345,23 +420,40 @@ export default function PipelinePageClient() {
               role: "assistant",
               content: formatAssistantAnswer(parsedDemoResponse.result.answerBody),
               citations: parsedDemoResponse.result.citations,
+              status: "complete",
             },
           ])
           return
         }
       }
 
-      const response = await askChatQuestion(newUserMessage.content)
-
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: formatAssistantAnswer(response.result.answerBody),
-          citations: response.result.citations,
+      await streamChatQuestion(question, {
+        onTargetCompleted: (event) => {
+          setMessages((previousMessages) =>
+            upsertTargetAssistantMessage(previousMessages, {
+              id: `${newUserMessage.id}:${event.target.key}`,
+              role: "assistant",
+              content: formatAssistantAnswer(event.result.answerBody),
+              citations: event.result.citations,
+              targetKey: event.target.key,
+              targetLabel: event.target.label,
+              status: "complete",
+            }),
+          )
         },
-      ])
+        onTargetFailed: (event) => {
+          setMessages((previousMessages) =>
+            upsertTargetAssistantMessage(previousMessages, {
+              id: `${newUserMessage.id}:${event.target.key}`,
+              role: "assistant",
+              content: event.error,
+              targetKey: event.target.key,
+              targetLabel: event.target.label,
+              status: "error",
+            }),
+          )
+        },
+      })
     } catch (error) {
       console.error("Chat error:", error)
       setMessages((previousMessages) => [
@@ -370,6 +462,7 @@ export default function PipelinePageClient() {
           id: Date.now().toString(),
           role: "assistant",
           content: "Error connecting to the AI.",
+          status: "error",
         },
       ])
     } finally {
@@ -419,6 +512,7 @@ export default function PipelinePageClient() {
       setNotebookName(data.notebook.title)
       setGeneratedNotebookId(data.notebook.id)
       setGeneratedSlides("")
+      clearSlideDeckState()
       setIsGeneratingNotebook(false)
       setActiveNotebookEntryId(null)
       setActiveStep(2)
@@ -429,42 +523,115 @@ export default function PipelinePageClient() {
     }
   }
 
-  async function handleGenerateSlides() {
-    if (!extractedStyle || !generatedNotebookId) {
+  async function handleBuildPowerPoint() {
+    if (!generatedNotebookId || !extractedStyle.trim() || isStartingSlideDeck) {
       return
     }
 
-    setIsGeneratingSlides(true)
+    const requestedAt = Date.now()
+    setIsStartingSlideDeck(true)
+    setGeneratedSlides("")
+    clearSlideDeckState()
 
     try {
-      const data = await fetchJson<{ ok: boolean; slides: string }>("/api/slides/generate", {
+      const data = await fetchJson<SlideDeckJobResponse>("/api/slides/jobs", {
         method: "POST",
         body: JSON.stringify({
-          style: extractedStyle,
-          content: buildNotebookCompileSource(savedSnippets),
+          notebookId: generatedNotebookId,
+          instructions: extractedStyle.trim(),
         }),
       })
 
-      setGeneratedSlides(data.slides || "Failed to generate slides.")
+      applySlideDeckState({
+        ...mergeSlideDeckJobIntoSessionState(createEmptySlideDeckState(), data.job, Date.now()),
+        slideDeckRequestedAt: requestedAt,
+      })
     } catch (error) {
-      console.error("Slide generation error:", error)
-      setGeneratedSlides("Error generating slides.")
+      const message = error instanceof Error ? error.message : "Failed to start PowerPoint build"
+      applySlideDeckState(
+        createFailedSlideDeckState(message, null, requestedAt, Date.now(), null),
+      )
     } finally {
-      setIsGeneratingSlides(false)
+      setIsStartingSlideDeck(false)
     }
   }
 
-  function handleToggleFullscreen() {
-    if (!slidesContainerRef.current) {
+  const pollSlideDeckJob = useCallback(async () => {
+    if (!generatedNotebookId || !slideDeckTaskId) {
       return
     }
 
-    if (document.fullscreenElement) {
-      void document.exitFullscreen()
+    const checkedAt = Date.now()
+
+    try {
+      const data = await fetchJson<SlideDeckJobResponse>(
+        `/api/slides/jobs/${encodeURIComponent(generatedNotebookId)}/${encodeURIComponent(slideDeckTaskId)}`,
+      )
+      applySlideDeckJobResult(data.job, checkedAt)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to check PowerPoint build"
+      applySlideDeckState(
+        createFailedSlideDeckState(
+          message,
+          slideDeckErrorCode,
+          slideDeckRequestedAt,
+          checkedAt,
+          slideDeckTaskId,
+        ),
+      )
+    }
+  }, [
+    applySlideDeckJobResult,
+    applySlideDeckState,
+    generatedNotebookId,
+    slideDeckErrorCode,
+    slideDeckRequestedAt,
+    slideDeckTaskId,
+  ])
+
+  useEffect(() => {
+    if (!isSlideDeckJobActive(slideDeckState) || !generatedNotebookId || !slideDeckTaskId) {
       return
     }
 
-    void slidesContainerRef.current.requestFullscreen()
+    void pollSlideDeckJob()
+
+    const pollInterval = window.setInterval(() => {
+      void pollSlideDeckJob()
+    }, SLIDE_DECK_POLL_INTERVAL_MS)
+
+    return () => window.clearInterval(pollInterval)
+  }, [generatedNotebookId, pollSlideDeckJob, slideDeckState, slideDeckTaskId])
+
+  useEffect(() => {
+    const previousState = previousSlideDeckStateRef.current
+
+    if (
+      (previousState === "pending" || previousState === "inProgress") &&
+      slideDeckState === "completed" &&
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      document.visibilityState === "hidden" &&
+      Notification.permission === "granted"
+    ) {
+      new Notification("PowerPoint ready", {
+        body: notebookName
+          ? `Your PPTX deck for "${notebookName}" is ready to download.`
+          : "Your PPTX deck is ready to download.",
+      })
+    }
+
+    previousSlideDeckStateRef.current = slideDeckState
+  }, [notebookName, slideDeckState])
+
+  function handleDownloadPowerPoint() {
+    if (!generatedNotebookId || !slideDeckTaskId || slideDeckState !== "completed") {
+      return
+    }
+
+    window.location.assign(
+      `/api/slides/jobs/${encodeURIComponent(generatedNotebookId)}/${encodeURIComponent(slideDeckTaskId)}/download`,
+    )
   }
 
   return (
@@ -539,15 +706,19 @@ export default function PipelinePageClient() {
             <PresentationStep
               notebookName={notebookName}
               extractedStyle={extractedStyle}
-              generatedSlides={generatedSlides}
-              slides={slides}
-              slidesContainerRef={slidesContainerRef}
-              isGeneratingSlides={isGeneratingSlides}
-              isFullscreen={isFullscreen}
-              currentSlideIndex={currentSlideIndex}
-              onGenerateSlides={handleGenerateSlides}
-              onClearSlides={() => setGeneratedSlides("")}
-              onToggleFullscreen={handleToggleFullscreen}
+              slideDeckTaskId={slideDeckTaskId}
+              slideDeckState={slideDeckState}
+              slideDeckError={slideDeckError}
+              slideDeckErrorCode={slideDeckErrorCode}
+              requestedAtLabel={requestedAtLabel}
+              lastCheckedAtLabel={lastCheckedAtLabel}
+              nextCheckAtLabel={nextCheckAtLabel}
+              completedAtLabel={completedAtLabel}
+              isStartingSlideDeck={isStartingSlideDeck}
+              canBuildPowerPoint={canBuildPowerPoint}
+              onBuildPowerPoint={handleBuildPowerPoint}
+              onRetryBuild={handleBuildPowerPoint}
+              onDownloadPowerPoint={handleDownloadPowerPoint}
             />
           )}
         </AnimatePresence>
@@ -599,6 +770,26 @@ export default function PipelinePageClient() {
       )}
     </div>
   )
+}
+
+function upsertTargetAssistantMessage(messages: Message[], nextMessage: Message): Message[] {
+  const existingIndex = messages.findIndex((message) => message.id === nextMessage.id)
+
+  if (existingIndex === -1) {
+    return [...messages, nextMessage]
+  }
+
+  const updatedMessages = [...messages]
+  updatedMessages[existingIndex] = nextMessage
+  return updatedMessages
+}
+
+function formatTimestamp(value: number | null): string | null {
+  if (value === null) {
+    return null
+  }
+
+  return new Date(value).toLocaleString()
 }
 
 async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {

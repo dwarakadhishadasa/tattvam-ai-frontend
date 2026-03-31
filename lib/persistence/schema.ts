@@ -332,6 +332,14 @@ function normalizeSessionState(
     savedSnippets.some((snippet) => snippet.id === value.activeNotebookEntryId)
       ? value.activeNotebookEntryId
       : null
+  const slideDeckTaskId =
+    typeof value.slideDeckTaskId === "string" && value.slideDeckTaskId.trim()
+      ? value.slideDeckTaskId
+      : null
+  const slideDeckState = normalizeSlideDeckState(value.slideDeckState)
+  const slideDeckRequestedAt = normalizeOptionalTimestamp(value.slideDeckRequestedAt)
+  const slideDeckLastCheckedAt = normalizeOptionalTimestamp(value.slideDeckLastCheckedAt)
+  const slideDeckCompletedAt = normalizeOptionalTimestamp(value.slideDeckCompletedAt)
 
   return {
     activeStep,
@@ -347,6 +355,14 @@ function normalizeSessionState(
     activeNotebookEntryId,
     generatedNotebookId,
     generatedSlides: value.generatedSlides,
+    slideDeckTaskId,
+    slideDeckState,
+    slideDeckError: typeof value.slideDeckError === "string" ? value.slideDeckError : null,
+    slideDeckErrorCode:
+      typeof value.slideDeckErrorCode === "string" ? value.slideDeckErrorCode : null,
+    slideDeckRequestedAt,
+    slideDeckLastCheckedAt,
+    slideDeckCompletedAt,
   }
 }
 
@@ -363,7 +379,10 @@ function isValidMessage(value: unknown): value is Message {
     typeof value.id === "string" &&
     (value.role === "user" || value.role === "assistant") &&
     typeof value.content === "string" &&
-    (value.citations === undefined || Array.isArray(value.citations))
+    (value.citations === undefined || Array.isArray(value.citations)) &&
+    (value.targetKey === undefined || typeof value.targetKey === "string") &&
+    (value.targetLabel === undefined || typeof value.targetLabel === "string") &&
+    (value.status === undefined || value.status === "complete" || value.status === "error")
   )
 }
 
@@ -469,4 +488,17 @@ function isNotebookSourceType(
   value: unknown,
 ): value is SessionState["savedSnippets"][number]["sourceType"] {
   return value === "response" || value === "citation" || value === "context"
+}
+
+function normalizeSlideDeckState(value: unknown): SessionState["slideDeckState"] {
+  return value === "pending" ||
+    value === "inProgress" ||
+    value === "completed" ||
+    value === "failed"
+    ? value
+    : "idle"
+}
+
+function normalizeOptionalTimestamp(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
