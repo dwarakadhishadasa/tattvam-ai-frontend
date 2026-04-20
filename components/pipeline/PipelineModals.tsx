@@ -22,6 +22,7 @@ import type {
   VerseData,
 } from "@/components/pipeline/types"
 import type { Citation } from "@/lib/chat/shared"
+import { getYouTubeInfo } from "@/lib/youtube"
 
 type ContextReferenceModalProps = {
   isOpen: boolean
@@ -152,6 +153,9 @@ export function CitationModal({
   onSaveSnippet,
 }: CitationModalProps) {
   const citation = citationSelection?.citation ?? null
+  const citationUrl = citation?.url ?? ""
+  const hasCitationUrl = Boolean(citationUrl)
+  const isYouTubeCitation = hasCitationUrl ? Boolean(getYouTubeInfo(citationUrl)) : false
 
   return (
     <AnimatePresence>
@@ -183,30 +187,53 @@ export function CitationModal({
             </div>
 
             <div className="p-6 overflow-y-auto hide-scrollbar">
-              <div className="relative mb-6">
-                <Quote className="absolute -top-2 -left-2 w-8 h-8 text-zinc-100 -z-10" />
-                <p className="text-[15px] text-zinc-700 leading-relaxed font-medium italic">
-                  &ldquo;{citation.text}&rdquo;
-                </p>
+              <div className="space-y-6">
+                {hasCitationUrl && (
+                  <section className="space-y-2">
+                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">URL:</h4>
+                    <a
+                      href={citationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all text-sm font-medium text-blue-600 underline underline-offset-4 transition-colors hover:text-blue-800"
+                    >
+                      {citationUrl}
+                    </a>
+                  </section>
+                )}
+
+                {citation.text && (
+                  <section className="space-y-3">
+                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                      Content:
+                    </h4>
+                    <div className="relative">
+                      <Quote className="absolute -top-2 -left-2 w-8 h-8 text-zinc-100 -z-10" />
+                      <p className="text-[15px] text-zinc-700 leading-relaxed font-medium italic whitespace-pre-wrap">
+                        &ldquo;{citation.text}&rdquo;
+                      </p>
+                    </div>
+                  </section>
+                )}
               </div>
 
-              {citation.url && (
+              {hasCitationUrl && (
                 <div className="mt-4">
-                  <YouTubeEmbed url={citation.url} />
+                  <YouTubeEmbed url={citationUrl} />
                 </div>
               )}
             </div>
 
             <div className="p-6 border-t border-zinc-100 bg-zinc-50 flex justify-between items-center">
-              {citation.url ? (
+              {hasCitationUrl ? (
                 <a
-                  href={citation.url}
+                  href={citationUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm font-bold text-zinc-500 hover:text-zinc-900 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Open in YouTube
+                  {isYouTubeCitation ? "Open in YouTube" : "Open Source"}
                 </a>
               ) : (
                 <div />

@@ -2,7 +2,7 @@
 title: 'Implementation Plan: Backend Endpoint Centralization with Preconfigured Notebook Targets'
 type: 'implementation-plan'
 created: '2026-03-28'
-status: 'proposed'
+status: 'done'
 context:
   - '_bmad-output/implementation-artifacts/spec-backend-endpoint-centralization-dynamic-notebook-targeting.md'
   - '_bmad-output/project-context.md'

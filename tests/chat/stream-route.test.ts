@@ -141,5 +141,11 @@ describe("POST /api/chat/stream", () => {
     expect(body).toContain('"totalTargets":4')
     expect(body).toContain('"completedTargets":3')
     expect(body).toContain('"failedTargets":1')
+    expect(requestNormalizedChatResult).toHaveBeenCalledWith("What is tattvam?", "nb-1", {
+      targetKey: "one",
+    })
+    expect(requestNormalizedChatResult).toHaveBeenCalledWith("What is tattvam?", "nb-2", {
+      targetKey: "two",
+    })
   })
 })

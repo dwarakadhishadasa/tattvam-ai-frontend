@@ -1,5 +1,7 @@
 import { getYouTubeInfo } from "@/lib/youtube"
+import { getCitationNumbersFromText } from "@/lib/chat/citation-ranges"
 import type { ChatRouteSuccessResponse, Citation, NormalizedChatResult } from "@/lib/chat/shared"
+import { isLectureExtractionTargetKey } from "@/lib/chat/target-keys"
 
 type DownstreamReference = {
   citation_number?: number | string
@@ -24,8 +26,13 @@ export type DownstreamChatResponse = {
   error?: string
 }
 
+type NormalizeDownstreamChatOptions = {
+  targetKey?: string | null
+}
+
 export function normalizeDownstreamChatResponse(
   data: DownstreamChatResponse | null | undefined,
+  options?: NormalizeDownstreamChatOptions,
 ): ChatRouteSuccessResponse | null {
   if (!data?.ok || !data.result?.answer) {
     return null
@@ -33,18 +40,38 @@ export function normalizeDownstreamChatResponse(
 
   return {
     ok: true,
-    result: normalizeDownstreamResult(data.result),
+    result: normalizeDownstreamResult(data.result, options),
   }
 }
 
-export function normalizeDownstreamResult(result: DownstreamResult): NormalizedChatResult {
+export function normalizeDownstreamResult(
+  result: DownstreamResult,
+  options?: NormalizeDownstreamChatOptions,
+): NormalizedChatResult {
   const answer = result.answer ?? ""
+  const answerBody = stripCitationAppendix(answer)
   const appendixStart = findCitationAppendixStart(answer)
   const appendixText = appendixStart === -1 ? "" : answer.slice(appendixStart)
   const appendixUrls = extractCitationUrls(appendixText)
   const references = Array.isArray(result.references) ? result.references : []
+  const citations = isLectureExtractionTargetKey(options?.targetKey)
+    ? normalizeLectureCitations(answerBody, references)
+    : normalizeGenericCitations(references, appendixUrls)
 
-  const citations: Citation[] = references
+  return {
+    answerBody,
+    citations,
+    conversationId: normalizeString(result.conversation_id),
+    turnNumber: normalizeFiniteNumber(result.turn_number),
+    isFollowUp: typeof result.is_follow_up === "boolean" ? result.is_follow_up : null,
+  }
+}
+
+function normalizeGenericCitations(
+  references: DownstreamReference[],
+  appendixUrls: Record<number, string>,
+): Citation[] {
+  return references
     .map((reference) => {
       const number = normalizeCitationNumber(reference.citation_number)
 
@@ -68,13 +95,87 @@ export function normalizeDownstreamResult(result: DownstreamResult): NormalizedC
       }
     })
     .filter((citation): citation is Citation => citation !== null)
+}
+
+function normalizeLectureCitations(
+  answerBody: string,
+  references: DownstreamReference[],
+): Citation[] {
+  const citedNumbers = new Set(getCitationNumbersFromText(answerBody))
+
+  if (citedNumbers.size === 0) {
+    return []
+  }
+
+  const citationsByNumber = new Map<number, Citation>()
+
+  for (const reference of references) {
+    const citation = normalizeLectureCitation(reference, citedNumbers)
+
+    if (!citation || citationsByNumber.has(citation.number)) {
+      continue
+    }
+
+    citationsByNumber.set(citation.number, citation)
+  }
+
+  return Array.from(citationsByNumber.values()).sort((left, right) => left.number - right.number)
+}
+
+function normalizeLectureCitation(
+  reference: DownstreamReference,
+  citedNumbers: Set<number>,
+): Citation | null {
+  const number = normalizeCitationNumber(reference.citation_number)
+
+  if (number <= 0 || !citedNumbers.has(number)) {
+    return null
+  }
+
+  const citedText = typeof reference.cited_text === "string" ? reference.cited_text : ""
+  const sections = extractLectureSections(citedText)
+  const url =
+    normalizeExternalUrl(getReferenceUrlCandidate(reference)) ||
+    normalizeExternalUrl(sections.url) ||
+    getYouTubeUrlFromText(citedText)
+  const text = sections.content
+
+  if (!url && !text) {
+    return null
+  }
 
   return {
-    answerBody: stripCitationAppendix(answer),
-    citations,
-    conversationId: normalizeString(result.conversation_id),
-    turnNumber: normalizeFiniteNumber(result.turn_number),
-    isFollowUp: typeof result.is_follow_up === "boolean" ? result.is_follow_up : null,
+    number,
+    text,
+    url,
+  }
+}
+
+function extractLectureSections(text: string): { url: string; content: string } {
+  if (!text) {
+    return { url: "", content: "" }
+  }
+
+  const sections = new Map<string, string>()
+  const matches = Array.from(
+    text.matchAll(/\b(Themes|URL|Content-type|Audience|Content)\s*:/gi),
+  )
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index]
+    const label = match[1].toLowerCase()
+    const valueStart = (match.index ?? 0) + match[0].length
+    const valueEnd = index + 1 < matches.length ? (matches[index + 1].index ?? text.length) : text.length
+    const value = text.slice(valueStart, valueEnd).trim()
+
+    if (value) {
+      sections.set(label, value)
+    }
+  }
+
+  return {
+    url: sections.get("url") ?? "",
+    content: sections.get("content") ?? "",
   }
 }
 
@@ -197,17 +298,22 @@ function getCitationNumbersFromLine(line: string): number[] {
 }
 
 function getReferenceUrl(reference: DownstreamReference): string {
+  const candidate = getReferenceUrlCandidate(reference)
+
+  if (!candidate) {
+    return ""
+  }
+
+  const youtubeInfo = getYouTubeInfo(candidate)
+  return youtubeInfo ? youtubeInfo.url : ""
+}
+
+function getReferenceUrlCandidate(reference: DownstreamReference): string {
   const candidates = [reference.url, reference.source_url, reference.timestamped_url, reference.link]
 
   for (const candidate of candidates) {
-    if (!candidate) {
-      continue
-    }
-
-    const youtubeInfo = getYouTubeInfo(candidate)
-
-    if (youtubeInfo) {
-      return youtubeInfo.url
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim()
     }
   }
 
@@ -228,6 +334,19 @@ function getYouTubeUrlFromText(text: string | undefined): string {
   }
 
   return ""
+}
+
+function normalizeExternalUrl(value: string): string {
+  if (!value) {
+    return ""
+  }
+
+  try {
+    const normalized = new URL(value.trim())
+    return /^https?:$/u.test(normalized.protocol) ? normalized.toString() : ""
+  } catch {
+    return ""
+  }
 }
 
 function normalizeCitationNumber(value: number | string | undefined): number {

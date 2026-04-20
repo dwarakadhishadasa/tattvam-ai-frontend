@@ -32,7 +32,9 @@ export function streamChatTargets(
       const run = async () => {
         const tasks = targets.map(async (target) => {
           try {
-            const result = await requestNormalizedChatResult(question, target.notebookId)
+            const result = await requestNormalizedChatResult(question, target.notebookId, {
+              targetKey: target.key,
+            })
             completedTargets += 1
 
             await enqueueEvent("target.completed", {

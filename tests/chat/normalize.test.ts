@@ -142,4 +142,169 @@ describe("chat normalization", () => {
       },
     ])
   })
+
+  it("normalizes lecture citations by cited number, prunes uncited references, and keeps clean url/content fields", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Lecture answer with citations [7] and [2, 9-10].",
+          references: [
+            {
+              citation_number: 99,
+              cited_text:
+                "Themes: Leadership\nURL: https://www.youtube.com/watch?v=ZZZZZZZZZZZ&t=15s\nContent: Should be pruned",
+            },
+            {
+              citation_number: 10,
+              cited_text:
+                "Themes: Service\nURL: https://www.youtube.com/watch?v=AAAAAAAAAAA&t=40s\nContent: Tenth excerpt\nAudience: Youth",
+            },
+            {
+              citation_number: 7,
+              cited_text:
+                "Themes: Bhakti\nURL: https://www.youtube.com/watch?v=BBBBBBBBBBB&t=50s\nContent-type: Lecture\nContent: Seventh excerpt",
+            },
+            {
+              citation_number: 2,
+              cited_text:
+                "Themes: Sadhana\nURL: https://www.youtube.com/watch?v=CCCCCCCCCCC&t=60s\nContent: Second excerpt",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 2,
+        text: "Second excerpt",
+        url: "https://www.youtube.com/watch?v=CCCCCCCCCCC&t=60s",
+      },
+      {
+        number: 7,
+        text: "Seventh excerpt",
+        url: "https://www.youtube.com/watch?v=BBBBBBBBBBB&t=50s",
+      },
+      {
+        number: 10,
+        text: "Tenth excerpt",
+        url: "https://www.youtube.com/watch?v=AAAAAAAAAAA&t=40s",
+      },
+    ])
+  })
+
+  it("keeps lecture citations when content is missing but an explicit url field exists", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Lecture answer with citation [4].",
+          references: [
+            {
+              citation_number: 4,
+              cited_text: "Themes: Outreach\nAudience: Temple devotees",
+              url: "https://www.youtube.com/watch?v=DDDDDDDDDDD&t=120s",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 4,
+        text: "",
+        url: "https://www.youtube.com/watch?v=DDDDDDDDDDD&t=120s",
+      },
+    ])
+  })
+
+  it("keeps lecture citations when url markers are missing but content exists", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Lecture answer with citation [6].",
+          references: [
+            {
+              citation_number: 6,
+              cited_text: "Themes: Compassion\nContent: Sixth excerpt",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 6,
+        text: "Sixth excerpt",
+        url: "",
+      },
+    ])
+  })
+
+  it("keeps the first valid lecture reference when duplicate citation numbers appear", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Lecture answer with citation [8].",
+          references: [
+            {
+              citation_number: 8,
+              cited_text:
+                "URL: https://www.youtube.com/watch?v=EEEEEEEEEEE&t=33s\nContent: First winner",
+            },
+            {
+              citation_number: 8,
+              cited_text:
+                "URL: https://www.youtube.com/watch?v=FFFFFFFFFFF&t=44s\nContent: Duplicate loser",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 8,
+        text: "First winner",
+        url: "https://www.youtube.com/watch?v=EEEEEEEEEEE&t=33s",
+      },
+    ])
+  })
+
+  it("does not apply the lecture parser to non-lecture targets", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Answer body with inline reference [3].",
+          references: [
+            {
+              citation_number: 3,
+              cited_text:
+                "Themes: Bhakti\nURL: https://www.youtube.com/watch?v=GGGGGGGGGGG&t=77s\nContent: Generic path should keep full blob",
+            },
+          ],
+        },
+      },
+      { targetKey: "Bhaktivedanta NotebookLM" },
+    )
+
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 3,
+        text:
+          "Themes: Bhakti\nURL: https://www.youtube.com/watch?v=GGGGGGGGGGG&t=77s\nContent: Generic path should keep full blob",
+        url: "https://www.youtube.com/watch?v=GGGGGGGGGGG&t=77s",
+      },
+    ])
+  })
 })

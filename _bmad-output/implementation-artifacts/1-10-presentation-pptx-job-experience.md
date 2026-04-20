@@ -1,6 +1,6 @@
 # Story 1.10: Presentation PPTX Job Orchestration and Download Experience
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifacts
 

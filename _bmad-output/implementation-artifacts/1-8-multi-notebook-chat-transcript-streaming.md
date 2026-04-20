@@ -1,6 +1,6 @@
 # Story 1.8: Target-Labeled Multi-Notebook Chat Transcript Streaming
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifacts
 

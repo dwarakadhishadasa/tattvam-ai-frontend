@@ -1,3 +1,5 @@
+import { ISKCON_BANGALORE_LECTURES_TARGET_KEY } from "@/lib/chat/target-keys"
+
 export type ExtractionChatTarget = {
   key: string
   label: string
@@ -8,7 +10,7 @@ type ApprovedExtractionChatTarget = Pick<ExtractionChatTarget, "key" | "label">
 
 const APPROVED_EXTRACTION_CHAT_TARGETS: ApprovedExtractionChatTarget[] = [
   {
-    key: "ISKCON Bangalore Lectures",
+    key: ISKCON_BANGALORE_LECTURES_TARGET_KEY,
     label: "From Senior devotees lectures",
   },
   {

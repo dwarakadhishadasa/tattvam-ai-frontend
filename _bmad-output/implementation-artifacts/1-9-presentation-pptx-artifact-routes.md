@@ -1,6 +1,6 @@
 # Story 1.9: Presentation PPTX Artifact Job Routes
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifacts
 

@@ -34,6 +34,7 @@ import {
   mergeSlideDeckJobIntoSessionState,
   SLIDE_DECK_POLL_INTERVAL_MS,
 } from "@/components/pipeline/slideDeck"
+import { shouldAutoScrollToLatestMessage } from "@/components/pipeline/chatScroll"
 import {
   appendNotebookEntry,
   buildNotebookCompileSource,
@@ -89,6 +90,7 @@ export default function PipelinePageClient() {
   const [savedSnippets, setSavedSnippets] = useState<SavedSnippet[]>([])
   const [isChatting, setIsChatting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const previousMessageCountRef = useRef(messages.length)
   const contextRequestIdRef = useRef(0)
   const previousSlideDeckStateRef = useRef<SessionState["slideDeckState"]>("idle")
   const [activeCitation, setActiveCitation] = useState<ActiveCitationSelection | null>(null)
@@ -249,6 +251,16 @@ export default function PipelinePageClient() {
   }, [notices])
 
   useEffect(() => {
+    const shouldAutoScroll = shouldAutoScrollToLatestMessage(
+      previousMessageCountRef.current,
+      messages,
+    )
+    previousMessageCountRef.current = messages.length
+
+    if (!shouldAutoScroll) {
+      return
+    }
+
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 

@@ -2,7 +2,7 @@
 title: 'Implementation Plan: Presentation PPTX Artifact Generation and Readiness Polling'
 type: 'implementation-plan'
 created: '2026-03-29'
-status: 'proposed'
+status: 'done'
 context:
   - '_bmad-output/implementation-artifacts/spec-presentation-pptx-artifact-generation.md'
   - '_bmad-output/implementation-artifacts/spec-extraction-generate-slides-notebook-creation.md'

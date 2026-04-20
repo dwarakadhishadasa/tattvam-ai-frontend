@@ -2,7 +2,7 @@
 title: 'Server-Owned Multi-Notebook Chat Fan-Out with Streaming Responses'
 type: 'feature'
 created: '2026-03-29'
-status: 'proposed'
+status: 'done'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/runtime-interfaces.md'

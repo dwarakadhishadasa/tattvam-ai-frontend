@@ -52,6 +52,9 @@ export class ChatBackendResponseError extends Error {
 export async function requestNormalizedChatResult(
   question: string,
   notebookId: string,
+  options?: {
+    targetKey?: string | null
+  },
 ): Promise<NormalizedChatResult> {
   const backendResponse = await forwardChatQuestionToNotebook(question, notebookId)
   const data = await readChatResponseBody(backendResponse)
@@ -68,6 +71,7 @@ export async function requestNormalizedChatResult(
 
   const normalizedResponse = normalizeDownstreamChatResponse(
     data as Parameters<typeof normalizeDownstreamChatResponse>[0],
+    options,
   )
 
   if (!normalizedResponse) {

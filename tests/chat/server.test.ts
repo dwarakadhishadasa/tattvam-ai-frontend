@@ -5,8 +5,10 @@ import {
   ChatBackendUnavailableError,
   forwardChatQuestion,
   forwardChatQuestionToNotebook,
+  requestNormalizedChatResult,
 } from "../../lib/chat/server"
 import * as backendEndpoints from "../../lib/backend/endpoints"
+import * as chatNormalize from "../../lib/chat/normalize"
 
 describe("chat server transport failures", () => {
   afterEach(() => {
@@ -83,6 +85,40 @@ describe("chat server transport failures", () => {
         body: JSON.stringify({ question: "hello" }),
         cache: "no-store",
       },
+    )
+  })
+
+  it("passes the completed target key into response normalization when provided", async () => {
+    vi.spyOn(backendEndpoints, "getNotebookChatUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks/target-id/chat/ask",
+    )
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            answer: "Answer body [1].",
+            references: [],
+          },
+        }),
+        { status: 200 },
+      ),
+    )
+    const normalizeSpy = vi.spyOn(chatNormalize, "normalizeDownstreamChatResponse")
+
+    await requestNormalizedChatResult("hello", "target-id", {
+      targetKey: "ISKCON Bangalore Lectures",
+    })
+
+    expect(normalizeSpy).toHaveBeenCalledWith(
+      {
+        ok: true,
+        result: {
+          answer: "Answer body [1].",
+          references: [],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
     )
   })
 })

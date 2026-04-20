@@ -1,6 +1,6 @@
 # Story 1.7: Server-Owned Multi-Notebook Chat Stream Route
 
-Status: ready-for-review
+Status: done
 
 ## Source Artifacts
 

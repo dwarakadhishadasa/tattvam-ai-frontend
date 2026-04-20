@@ -2,7 +2,7 @@
 title: 'Presentation PPTX Artifact Generation and Readiness Polling'
 type: 'feature'
 created: '2026-03-29'
-status: 'proposed'
+status: 'done'
 context:
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/data-model.md'
