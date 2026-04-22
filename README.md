@@ -24,7 +24,8 @@ No notebook, Gemini, or Supabase secrets should be read from browser code.
    - `GEMINI_API_KEY` for Gemini-backed style extraction, slide generation, and
      other server-side Gemini helpers
    - `TATTVAM_NOTEBOOK_BACKEND_ORIGIN` for the external notebook backend
-     boundary, for example `http://127.0.0.1:8000`
+     boundary, for example `http://127.0.0.1:8000` locally or
+     `https://tattvam-ai-backend-two.vercel.app` in Vercel
    - `TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID` for the legacy single-target
      `POST /api/chat` route
    - `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` for the approved four-target
@@ -63,6 +64,9 @@ Provision these variables in Vercel for the environments that need them:
 Guidance:
 
 - Development, Preview, and Production should each define their own values in Vercel.
+- If Vercel is missing `TATTVAM_NOTEBOOK_BACKEND_ORIGIN`, the app now falls back
+  to `https://tattvam-ai-backend-two.vercel.app` instead of localhost, but the
+  variable should still be set explicitly per environment.
 - Preview should point at preview-safe notebook and Supabase resources unless the
   team explicitly accepts shared production dependencies.
 - Browser traffic should remain same-origin to `/api/*`; the browser should never

@@ -1,4 +1,7 @@
-export const DEFAULT_NOTEBOOK_BACKEND_ORIGIN = "http://127.0.0.1:8000"
+export const DEFAULT_LOCAL_NOTEBOOK_BACKEND_ORIGIN = "http://127.0.0.1:8000"
+export const DEFAULT_VERCEL_NOTEBOOK_BACKEND_ORIGIN =
+  "https://tattvam-ai-backend-two.vercel.app"
+export const DEFAULT_NOTEBOOK_BACKEND_ORIGIN = DEFAULT_LOCAL_NOTEBOOK_BACKEND_ORIGIN
 
 export class NotebookBackendConfigurationError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -23,7 +26,7 @@ export function isNotebookBackendConfigurationError(
 export function getNotebookBackendOrigin(
   rawOrigin = process.env.TATTVAM_NOTEBOOK_BACKEND_ORIGIN,
 ): string {
-  const origin = rawOrigin?.trim() || DEFAULT_NOTEBOOK_BACKEND_ORIGIN
+  const origin = rawOrigin?.trim() || getDefaultNotebookBackendOrigin()
   let parsedOrigin: URL
 
   try {
@@ -48,6 +51,12 @@ export function getNotebookBackendOrigin(
   const normalizedPathname = trimTrailingSlash(parsedOrigin.pathname)
 
   return `${parsedOrigin.origin}${normalizedPathname}${parsedOrigin.search}${parsedOrigin.hash}`
+}
+
+function getDefaultNotebookBackendOrigin(): string {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production"
+    ? DEFAULT_VERCEL_NOTEBOOK_BACKEND_ORIGIN
+    : DEFAULT_LOCAL_NOTEBOOK_BACKEND_ORIGIN
 }
 
 export function getNotebooksUrl(): string {

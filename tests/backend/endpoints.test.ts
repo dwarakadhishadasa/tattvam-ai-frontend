@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  DEFAULT_LOCAL_NOTEBOOK_BACKEND_ORIGIN,
   DEFAULT_NOTEBOOK_BACKEND_ORIGIN,
+  DEFAULT_VERCEL_NOTEBOOK_BACKEND_ORIGIN,
   NotebookBackendConfigurationError,
   getDefaultExtractionChatNotebookId,
   getDefaultExtractionChatUrl,
@@ -21,9 +23,28 @@ describe("backend endpoint builders", () => {
 
   it("uses a client-usable loopback host for the default backend origin", () => {
     vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_ORIGIN", "")
+    vi.stubEnv("NODE_ENV", "test")
+    vi.stubEnv("VERCEL", "")
 
     expect(getNotebookBackendOrigin()).toBe(DEFAULT_NOTEBOOK_BACKEND_ORIGIN)
+    expect(getNotebookBackendOrigin()).toBe(DEFAULT_LOCAL_NOTEBOOK_BACKEND_ORIGIN)
     expect(getNotebooksUrl()).toBe("http://127.0.0.1:8000/v1/notebooks")
+  })
+
+  it("uses the hosted Vercel backend fallback for production deployments", () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_ORIGIN", "")
+    vi.stubEnv("NODE_ENV", "production")
+
+    expect(getNotebookBackendOrigin()).toBe(DEFAULT_VERCEL_NOTEBOOK_BACKEND_ORIGIN)
+    expect(getNotebooksUrl()).toBe("https://tattvam-ai-backend-two.vercel.app/v1/notebooks")
+  })
+
+  it("uses the hosted Vercel backend fallback when the Vercel runtime marker is present", () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_ORIGIN", "")
+    vi.stubEnv("NODE_ENV", "test")
+    vi.stubEnv("VERCEL", "1")
+
+    expect(getNotebookBackendOrigin()).toBe(DEFAULT_VERCEL_NOTEBOOK_BACKEND_ORIGIN)
   })
 
   it("normalizes 0.0.0.0 to 127.0.0.1 before building notebook URLs", () => {
