@@ -213,4 +213,55 @@ describe("chat server transport failures", () => {
       },
     ])
   })
+
+  it("falls back to empty lecture citation text when the citation content store lookup fails", async () => {
+    vi.spyOn(backendEndpoints, "getNotebookChatUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks/target-id/chat/ask",
+    )
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            answer: "Answer body [1].",
+            references: [],
+          },
+        }),
+        { status: 200 },
+      ),
+    )
+    vi.spyOn(chatNormalize, "normalizeDownstreamChatResponse").mockReturnValue({
+      ok: true,
+      result: {
+        answerBody: "Answer body [1].",
+        citations: [
+          {
+            number: 1,
+            text: "",
+            url: "https://youtu.be/AAAAABBBBB1?t=11",
+          },
+        ],
+        conversationId: null,
+        turnNumber: 1,
+        isFollowUp: false,
+      },
+    })
+    vi.spyOn(citationContentStore, "getCitationContentByUrls").mockRejectedValue(
+      new Error("self-signed certificate in certificate chain"),
+    )
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const result = await requestNormalizedChatResult("hello", "target-id", {
+      targetKey: "ISKCON Bangalore Lectures",
+    })
+
+    expect(result.citations).toEqual([
+      {
+        number: 1,
+        text: "",
+        url: "https://youtu.be/AAAAABBBBB1?t=11",
+      },
+    ])
+    expect(consoleErrorSpy).toHaveBeenCalled()
+  })
 })

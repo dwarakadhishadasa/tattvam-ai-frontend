@@ -80,11 +80,12 @@ function readCitationStoreConfig(): {
   table: string
 } {
   const databaseUrl =
-    process.env.TATTVAM_LECTURE_CITATIONS_DATABASE_URL?.trim() ||
-    process.env.POSTGRES_URL?.trim() ||
-    process.env.POSTGRES_URL_NON_POOLING?.trim()
+    normalizeEnvValue(process.env.TATTVAM_LECTURE_CITATIONS_DATABASE_URL) ||
+    normalizeEnvValue(process.env.POSTGRES_URL) ||
+    normalizeEnvValue(process.env.POSTGRES_URL_NON_POOLING)
   const table =
-    process.env.TATTVAM_LECTURE_CITATIONS_TABLE?.trim() || DEFAULT_LECTURE_CITATIONS_TABLE
+    normalizeEnvValue(process.env.TATTVAM_LECTURE_CITATIONS_TABLE) ||
+    DEFAULT_LECTURE_CITATIONS_TABLE
 
   if (!databaseUrl) {
     throw new LectureCitationStoreConfigurationError(
@@ -102,6 +103,23 @@ function readCitationStoreConfig(): {
     databaseUrl,
     table,
   }
+}
+
+function normalizeEnvValue(value: string | undefined): string {
+  const trimmed = value?.trim()
+
+  if (!trimmed) {
+    return ""
+  }
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim()
+  }
+
+  return trimmed
 }
 
 function getOptionalSslConfig(databaseUrl: string): Pick<PoolConfig, "ssl"> | object {

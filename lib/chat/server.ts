@@ -3,7 +3,10 @@ import {
   getNotebookBackendAuthHeaders,
   getNotebookChatUrl,
 } from "@/lib/backend/endpoints"
-import { getCitationContentByUrls } from "@/lib/chat/citation-content-store"
+import {
+  getCitationContentByUrls,
+  isLectureCitationStoreConfigurationError,
+} from "@/lib/chat/citation-content-store"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import type { NormalizedChatResult } from "@/lib/chat/shared"
 import { isLectureExtractionTargetKey } from "@/lib/chat/target-keys"
@@ -144,7 +147,18 @@ async function hydrateLectureCitationText(
     return result
   }
 
-  const citationContentByUrl = await getCitationContentByUrls(citationUrls)
+  let citationContentByUrl: Map<string, string>
+
+  try {
+    citationContentByUrl = await getCitationContentByUrls(citationUrls)
+  } catch (error) {
+    if (isLectureCitationStoreConfigurationError(error)) {
+      throw error
+    }
+
+    console.error("Lecture citation hydration failed; returning empty citation text.", error)
+    return result
+  }
 
   return {
     ...result,

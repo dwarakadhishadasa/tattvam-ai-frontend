@@ -85,6 +85,27 @@ describe("citation content store", () => {
     )
   })
 
+  it("strips wrapping quotes from the configured database url", async () => {
+    vi.stubEnv(
+      "TATTVAM_LECTURE_CITATIONS_DATABASE_URL",
+      '"postgres://quoted.example.com:6543/postgres?sslmode=no-verify&supa=base-pooler.x"',
+    )
+    queryMock.mockResolvedValue({ rows: [] })
+
+    const { getCitationContentByUrls } = await import("../../lib/chat/citation-content-store")
+    await getCitationContentByUrls(["https://youtu.be/AAAAABBBBB1?t=11"])
+
+    expect(poolConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionString:
+          "postgres://quoted.example.com:6543/postgres?sslmode=no-verify&supa=base-pooler.x",
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      }),
+    )
+  })
+
   it("throws a configuration error when no database url is available", async () => {
     const {
       getCitationContentByUrls,
