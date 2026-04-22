@@ -28,15 +28,18 @@ spec but materially affect state, persistence, and validation.
 **Primary Dependencies**: Next.js 15.4.9 App Router, Tailwind CSS 4.1.11, Framer
 Motion 12.x, `@google/genai` 1.17.0, `react-markdown` 10.1.0, `remark-gfm` 4.0.1,
 `react-dropzone` 15.0.0, `cheerio` 1.2.0, and existing `components/ui` primitives  
-**Storage**: Browser `localStorage` (`slide_image_cache`, `slide_style_cache`,
-`lecture_duration_cache`, `tattvam_sessions`), in-memory React state, synthetic
-notebook IDs, and outbound fetches to `prabhupadabooks.com`; there is no database
-or durable backend storage in this repository  
-**Testing**: No committed automated suite; baseline verification is `npm run lint`,
-`npm run build`, and explicit manual walkthroughs of context selection, extraction,
-citation review, synthesis, presentation, settings persistence, and history reload  
-**Target Platform**: Modern web browsers via a Next.js frontend, with the current
-experience optimized primarily for a full-screen desktop workflow  
+**Storage**: Browser `localStorage` and IndexedDB for client-owned session and
+settings persistence, in-memory React state, synthetic notebook IDs, outbound
+fetches to `prabhupadabooks.com` and the external notebook backend, and a planned
+Supabase-backed citation lookup store for Story 1.13; there is no general-purpose
+application database or durable server-side session store in this repository  
+**Testing**: `npm test`, `npm run lint`, `npm run build`, and explicit manual
+walkthroughs of context selection, extraction, citation review, synthesis,
+presentation, settings persistence, history reload, and Vercel preview smoke
+checks for server routes and deployment config  
+**Target Platform**: Vercel-hosted Next.js App Router frontend with Node.js route
+handlers, serving modern desktop-first browsers through same-origin `/api/*`
+boundaries  
 **Project Type**: Single Next.js App Router application  
 **Performance Goals**: Keep step transitions visually immediate, preserve smooth
 scrolling and markdown rendering for chat and slides, keep fullscreen presentation
@@ -44,17 +47,30 @@ responsive for modest deck sizes, and restore local state quickly on reload
 **Constraints**: Browser-managed workflow state, session history, fullscreen
 presentation, drag-and-drop, and modal interactions still require a substantial
 client feature boundary in `components/pipeline/PipelinePageClient.tsx`; extraction
-chat must target the notebook backend endpoint
-`http://0.0.0.0:8000/v1/notebooks/da406743-a373-47f9-9275-6c2e1e86c2b6/chat/ask`
-through a server-appropriate boundary, with the backend `question` field carrying
-only the user's trimmed chat input; runtime server code now prefers
-`GEMINI_API_KEY` and falls back to `NEXT_PUBLIC_GEMINI_API_KEY` for compatibility;
-notebook compilation is still simulated; PPTX export is only a placeholder
-affordance  
+chat must reach the external notebook backend through
+`TATTVAM_NOTEBOOK_BACKEND_ORIGIN` and a server-appropriate boundary, with the
+backend `question` field carrying only the user's trimmed chat input; Vercel
+deployment must keep `app/api/**` on the Node.js runtime; runtime server code
+should treat `GEMINI_API_KEY` as the Vercel source of truth and only tolerate
+`NEXT_PUBLIC_GEMINI_API_KEY` as a compatibility fallback; Story 1.13 citation
+hydration should use a server-only Supabase lookup store rather than a file-backed
+SQLite database; notebook compilation is still simulated; PPTX export is only a
+placeholder affordance  
 **Scale/Scope**: `app/page.tsx`, `components/pipeline/**`,
 `components/SettingsModal.tsx`, `app/api/**`, `lib/**`, `app/layout.tsx`,
 `app/globals.css`, `package.json`, and the reverse-engineered artifacts in
 `specs/001-short-name-tattvam/`
+
+## Deployment Direction
+
+The target deployment shape is now:
+
+- Vercel hosts the frontend and same-origin route handlers.
+- The notebook backend remains a separately operated service behind env-configured
+  server adapters.
+- Story 1.13 lecture citation text is planned to come from Supabase, not SQLite.
+- Production and Preview must have distinct environment-variable sets and smoke
+  checks before promotion.
 
 ## Constitution Check
 

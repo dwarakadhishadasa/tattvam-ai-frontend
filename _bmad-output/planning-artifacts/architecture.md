@@ -426,3 +426,64 @@ Implementation should include:
 - migration from legacy `tattvam_sessions`
 - pruning of stale session-index entries
 - graceful fallback to a fresh in-memory session on restore failure
+
+## Architecture Decision: Vercel Deployment and Server-Owned Citation Store
+
+### Decision
+
+Deploy the Next.js App Router application to Vercel as the frontend runtime of
+record, keep all existing `app/api/**` handlers on the Node.js runtime, continue
+treating the notebook backend as an external service reached through
+`TATTVAM_NOTEBOOK_BACKEND_ORIGIN`, and replace Story 1.13's planned SQLite
+lookup store with a server-only Supabase-backed citation content store.
+
+### Why This Decision
+
+- The repository is already a standard Next.js App Router app, so Vercel is the
+  lowest-friction hosting path for the frontend and route handlers.
+- Existing chat, verse, slide, and lecture routes already declare
+  `runtime = "nodejs"`, which matches the repo's use of streaming responses,
+  server fetches, and `cheerio`.
+- File-backed SQLite is a poor fit for Vercel's stateless function model and
+  per-deployment filesystem assumptions, while Supabase provides a managed
+  networked store that works consistently across preview and production
+  deployments.
+- The browser contract can stay unchanged because Vercel and Supabase both sit
+  behind the current server-owned normalization boundary.
+
+### Approved Runtime Topology
+
+- Vercel hosts the Next.js frontend and same-origin `app/api/**` route handlers.
+- Route handlers remain on the Node.js runtime; do not migrate chat, streaming,
+  verse scraping, or citation hydration to Edge.
+- The notebook backend remains external and is configured via
+  `TATTVAM_NOTEBOOK_BACKEND_ORIGIN`.
+- Gemini access remains server-owned through `GEMINI_API_KEY`, with
+  `NEXT_PUBLIC_GEMINI_API_KEY` retained only as a compatibility fallback until
+  runtime code is tightened.
+- Lecture citation content for `ISKCON Bangalore Lectures` is looked up from
+  Supabase by a server-only adapter and never directly from the browser.
+
+### Deployment Rules
+
+- Production, Preview, and Development must each have an explicit Vercel
+  environment-variable set.
+- Preview deployments should use non-production backend and Supabase resources
+  unless the team intentionally accepts shared-data risk.
+- Any future server-only data integration added for Vercel must follow the same
+  boundary as the citation store: browser -> same-origin route -> server-owned
+  adapter -> external service.
+- Deployment docs, implementation plans, and story artifacts must treat Vercel
+  as the default frontend host going forward.
+
+### Follow-on Requirements
+
+Implementation should include:
+
+- a deployment runbook for Vercel project creation, env configuration, and
+  preview validation
+- a server-only Supabase citation adapter for Story 1.13
+- explicit environment-variable documentation for `GEMINI_API_KEY`, notebook
+  backend routing, and Supabase access
+- preview and production smoke checks for `/api/chat`, `/api/chat/stream`, and
+  lecture citation hydration

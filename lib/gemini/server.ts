@@ -20,8 +20,7 @@ type TextPart = {
 let cachedClient: GoogleGenAI | null = null
 
 function getGeminiApiKey(): string {
-  const apiKey =
-    process.env.GEMINI_API_KEY?.trim() || process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim()
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
 
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured")

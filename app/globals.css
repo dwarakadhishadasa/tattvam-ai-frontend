@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+:root {
+  font-family:
+    "Segoe UI", "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+body {
+  font-family: inherit;
+}
+
 @layer utilities {
   .hide-scrollbar::-webkit-scrollbar {
     display: none;

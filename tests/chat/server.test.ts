@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+vi.mock("server-only", () => ({}))
+
 import {
   CHAT_BACKEND_UNAVAILABLE_MESSAGE,
   ChatBackendUnavailableError,
@@ -8,6 +10,7 @@ import {
   requestNormalizedChatResult,
 } from "../../lib/chat/server"
 import * as backendEndpoints from "../../lib/backend/endpoints"
+import * as citationContentStore from "../../lib/chat/citation-content-store"
 import * as chatNormalize from "../../lib/chat/normalize"
 
 describe("chat server transport failures", () => {
@@ -120,5 +123,68 @@ describe("chat server transport failures", () => {
       },
       { targetKey: "ISKCON Bangalore Lectures" },
     )
+  })
+
+  it("hydrates lecture citation text from the citation content store", async () => {
+    vi.spyOn(backendEndpoints, "getNotebookChatUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks/target-id/chat/ask",
+    )
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            answer: "Answer body [1].",
+            references: [],
+          },
+        }),
+        { status: 200 },
+      ),
+    )
+    vi.spyOn(chatNormalize, "normalizeDownstreamChatResponse").mockReturnValue({
+      ok: true,
+      result: {
+        answerBody: "Answer body [1].",
+        citations: [
+          {
+            number: 1,
+            text: "",
+            url: "https://youtu.be/AAAAABBBBB1?t=11",
+          },
+          {
+            number: 2,
+            text: "",
+            url: "https://youtu.be/CCCCCDDDDD2?t=22",
+          },
+        ],
+        conversationId: null,
+        turnNumber: 1,
+        isFollowUp: false,
+      },
+    })
+    const storeSpy = vi.spyOn(citationContentStore, "getCitationContentByUrls").mockResolvedValue(
+      new Map([["https://youtu.be/AAAAABBBBB1?t=11", "Hydrated lecture excerpt"]]),
+    )
+
+    const result = await requestNormalizedChatResult("hello", "target-id", {
+      targetKey: "ISKCON Bangalore Lectures",
+    })
+
+    expect(storeSpy).toHaveBeenCalledWith([
+      "https://youtu.be/AAAAABBBBB1?t=11",
+      "https://youtu.be/CCCCCDDDDD2?t=22",
+    ])
+    expect(result.citations).toEqual([
+      {
+        number: 1,
+        text: "Hydrated lecture excerpt",
+        url: "https://youtu.be/AAAAABBBBB1?t=11",
+      },
+      {
+        number: 2,
+        text: "",
+        url: "https://youtu.be/CCCCCDDDDD2?t=22",
+      },
+    ])
   })
 })

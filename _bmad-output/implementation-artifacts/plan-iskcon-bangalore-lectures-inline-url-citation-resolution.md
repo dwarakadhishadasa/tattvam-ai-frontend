@@ -13,7 +13,7 @@ context:
 
 ## Goal
 
-Replace the lecture-target citation mapping assumption that `references[*].citation_number` is the source of truth. For `ISKCON Bangalore Lectures`, treat inline citation URLs embedded in `answerBody` as the authoritative source identifiers, resolve citation content from a server-owned SQLite URL-to-content store, and keep the browser-facing citation contract numerically stable.
+Replace the lecture-target citation mapping assumption that `references[*].citation_number` is the source of truth. For `ISKCON Bangalore Lectures`, treat inline citation URLs embedded in `answerBody` as the authoritative source identifiers, resolve citation content from a server-owned Supabase citation store, and keep the browser-facing citation contract numerically stable.
 
 ## Problem Summary
 
@@ -70,27 +70,30 @@ Rationale:
 - Preserving the numeric contract keeps JSX, persistence, and restore behavior stable.
 - Server-side canonicalization is the smallest change surface that fits the current codebase architecture.
 
-### 3. Perform URL-to-Content Lookup at a Server-Owned SQLite Boundary
+### 3. Perform URL-to-Content Lookup at a Server-Owned Supabase Boundary
 
-Introduce a dedicated server adapter that resolves lecture citation content by URL from a SQLite key-value store. Do not access SQLite from JSX, browser utilities, or persistence code.
+Introduce a dedicated server adapter that resolves lecture citation content by URL from a Supabase-backed table or RPC. Do not access Supabase from JSX, browser utilities, or persistence code.
 
 Rationale:
 
 - Project context requires unstable or provider-specific payload shaping to happen at a server-owned boundary.
 - Database access is I/O and should stay separate from pure answer parsing.
-- A small adapter allows the actual SQLite schema and driver choice to remain localized.
+- Supabase fits Vercel's stateless runtime model more cleanly than file-backed
+  SQLite.
+- A small adapter allows the actual table or RPC shape to remain localized.
 
 ### 4. Keep Parsing Pure, Keep Lookup I/O Outside the Pure Normalizer
 
 Split the lecture workflow into two concerns:
 
 - pure parsing and answer rewriting from inline URL citations
-- server-side hydration of `citation.text` via the SQLite lookup adapter
+- server-side hydration of `citation.text` via the Supabase lookup adapter
 
 Rationale:
 
 - The current normalizer is heavily testable because it is pure.
-- SQLite lookup is an integration concern and should not force all parsing logic to become opaque or harder to unit test.
+- Supabase lookup is an integration concern and should not force all parsing
+  logic to become opaque or harder to unit test.
 - This preserves a clean seam between deterministic rewriting and storage-backed enrichment.
 
 ### 5. Canonicalize Lecture Citations by First URL Occurrence in the Answer
@@ -130,13 +133,13 @@ Rationale:
 3. A lecture-target helper scans `answerBody` for bracketed citation tokens whose contents are URL-shaped instead of numeric.
 4. Each discovered URL is normalized into:
    - a `displayUrl` for the browser contract
-   - a `lookupKey` for SQLite lookup and deduplication
+   - a `lookupKey` for Supabase lookup and deduplication
 5. The first occurrence of each normalized URL is assigned the next canonical citation number in answer order: `1`, `2`, `3`, ...
 6. The answer is rewritten so inline URL citations become numeric citation tokens, for example:
    - `[https://youtu.be/SqSgsKehYQI?t=650]` -> `[1]`
    - `[https://youtu.be/Sqqw2JDxTfI?t=771]` -> `[2]`
 7. Repeated URLs reuse the already assigned number instead of creating a new citation.
-8. The server performs one batched SQLite lookup for the canonical lecture citation URLs.
+8. The server performs one batched Supabase lookup for the canonical lecture citation URLs.
 9. The normalized lecture result returns:
    - rewritten numeric `answerBody`
    - `citations[]` with `{ number, url, text }`
@@ -159,12 +162,12 @@ Normalized lecture result:
     {
       "number": 1,
       "url": "https://youtu.be/SqSgsKehYQI?t=650",
-      "text": "Resolved from SQLite by URL"
+      "text": "Resolved from Supabase by URL"
     },
     {
       "number": 2,
       "url": "https://youtu.be/Sqqw2JDxTfI?t=771",
-      "text": "Resolved from SQLite by URL"
+      "text": "Resolved from Supabase by URL"
     }
   ]
 }
@@ -177,7 +180,7 @@ Normalized lecture result:
 - Lecture-target extraction of inline URL citations from `answerBody`
 - Lecture-target answer rewriting from URL citations to numeric citations
 - Lecture-target deduplication by normalized URL key
-- Server-owned SQLite lookup from URL to citation content
+- Server-owned Supabase lookup from URL to citation content
 - Preservation of the existing browser-facing `Citation` contract
 - Focused regression coverage for pure parsing, lookup hydration, and non-lecture non-regression
 
@@ -217,7 +220,7 @@ Important rules:
 - later occurrences of the same URL rewrite to that same number
 - numeric browser formatting remains unchanged because the answer is numeric by the time it reaches `formatAssistantAnswer(...)`
 
-### 3. Introduce a Server-Only SQLite Citation Content Adapter
+### 3. Introduce a Server-Only Supabase Citation Content Adapter
 
 Add a new server module such as:
 
@@ -225,9 +228,9 @@ Add a new server module such as:
 
 Responsibilities:
 
-- open or reuse a configured SQLite database
+- create or reuse a configured Supabase client
 - resolve one or more URLs to content text
-- hide table and column naming details from the chat pipeline
+- hide table or RPC naming details from the chat pipeline
 - return a batched URL-to-content mapping
 
 Recommended contract:
@@ -242,14 +245,15 @@ Schema assumption for planning purposes:
 
 - a read-only key-value shape equivalent to `url -> content`
 
-The adapter should own any concrete schema mapping so the rest of the chat pipeline only speaks in URLs.
+The adapter should own any concrete schema mapping so the rest of the chat
+pipeline only speaks in URLs.
 
 ### 4. Keep `normalize.ts` Pure and Hydrate Citation Text in `lib/chat/server.ts`
 
 Recommended separation:
 
 - `normalize.ts` returns the rewritten lecture answer plus canonical URL-number assignments
-- `lib/chat/server.ts` performs the SQLite lookup and builds the final `Citation[]`
+- `lib/chat/server.ts` performs the Supabase lookup and builds the final `Citation[]`
 
 Rationale:
 
@@ -270,17 +274,19 @@ Keep these surfaces stable unless implementation proves otherwise:
 
 This is a key architecture goal of the change.
 
-### 6. Add a Configured Server Boundary for SQLite Access
+### 6. Add a Configured Server Boundary for Supabase Access
 
-Add a server-owned configuration source for the SQLite database path, for example:
+Add server-owned configuration for Supabase access, for example:
 
-- `TATTVAM_LECTURE_CITATION_SQLITE_PATH`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `TATTVAM_LECTURE_CITATIONS_TABLE`
 
 Configuration rules:
 
 - validate presence at server startup or first use
 - fail fast with a clear server-side error if misconfigured
-- keep the browser unaware of database location and schema
+- keep the browser unaware of database credentials and schema
 
 ### 7. Update Automated Coverage Around the New Source of Truth
 
@@ -289,7 +295,7 @@ Required test focus:
 - inline lecture URL parsing from `answerBody`
 - answer rewriting from URLs to numeric citations
 - duplicate URL reuse of first-occurrence numbers
-- successful SQLite hydration
+- successful Supabase hydration
 - graceful lookup miss behavior
 - non-lecture target non-regression
 - stream path and one-shot path coverage where server hydration occurs
@@ -310,15 +316,15 @@ Required test focus:
 
 - Given a lecture-target answer containing bracketed URL citations, when normalization runs, then the server derives citations from those inline URLs rather than `result.references[*].citation_number`.
 - Given repeated appearances of the same lecture URL, when normalization runs, then the first occurrence defines the canonical citation number and later occurrences reuse it.
-- Given a lecture-target URL that exists in the SQLite store, when normalization completes, then the returned citation includes the resolved `text` for that URL.
-- Given a lecture-target URL missing from the SQLite store, when normalization completes, then the returned citation still includes the URL and a safe empty-text fallback instead of failing the whole answer.
+- Given a lecture-target URL that exists in the Supabase store, when normalization completes, then the returned citation includes the resolved `text` for that URL.
+- Given a lecture-target URL missing from the Supabase store, when normalization completes, then the returned citation still includes the URL and a safe empty-text fallback instead of failing the whole answer.
 - Given the browser receives the normalized result, when the transcript renders, then the existing numeric citation click flow continues working without URL-specific JSX logic.
 - Given a non-lecture target result, when normalization runs, then the current numeric and reference-based behavior remains unchanged.
 
 ## Suggested Delivery Order
 
 1. Add a pure lecture URL citation parser and answer rewrite helper.
-2. Add the SQLite content adapter behind a small server-only interface.
+2. Add the Supabase content adapter behind a small server-only interface.
 3. Hydrate lecture citation text in `lib/chat/server.ts`.
 4. Thread the hydrated result through the existing stream path.
 5. Add regression coverage for parsing, hydration, and non-lecture behavior.
@@ -335,21 +341,28 @@ Required test focus:
 ### Manual Checks
 
 1. Ask a lecture-target prompt that returns inline URL citations and confirm the rendered transcript shows numeric clickable citations rather than raw bracketed URLs.
-2. Click two different lecture citations and confirm the modal shows the resolved content from the SQLite store.
+2. Click two different lecture citations and confirm the modal shows the resolved content from the Supabase store.
 3. Ask or replay a lecture answer where the same URL appears more than once and confirm repeated citations open the same canonical entry.
 4. Force or simulate a lookup miss for one lecture URL and confirm the transcript still renders and the modal still opens with the URL present.
 5. Confirm a non-lecture target still uses its current citation behavior unchanged.
 
 ## Risks
 
-- If URL normalization differs from the keys stored in SQLite, content lookup misses will rise even when the source exists.
+- If URL normalization differs from the keys stored in Supabase, content lookup
+  misses will rise even when the source exists.
 - If server-side answer rewriting drifts from citation numbering, the browser could render anchors that do not match the returned citation list.
-- If SQLite lookup is performed one URL at a time instead of batched, lecture responses could regress in latency.
+- If Supabase lookup is performed one URL at a time instead of batched, lecture
+  responses could regress in latency.
 - If lecture URL parsing is broadened too aggressively, unrelated bracketed prose could be mistaken for citations.
 - If the browser contract is widened unnecessarily, persistence and restore complexity will increase without user benefit.
 
 ## Recommended Architecture Decision
 
-Treat inline lecture citation URLs as the authoritative lecture citation identifiers, then canonicalize them to numeric citations at the server boundary and hydrate their text from a server-owned SQLite URL-to-content store.
+Treat inline lecture citation URLs as the authoritative lecture citation
+identifiers, then canonicalize them to numeric citations at the server boundary
+and hydrate their text from a server-owned Supabase citation store.
 
-That approach keeps the UI contract boring, isolates the new storage dependency in `lib/`, and aligns the lecture citation model with the actual downstream answer format rather than an increasingly unreliable `references` side channel.
+That approach keeps the UI contract boring, isolates the new storage dependency
+in `lib/`, aligns with the target Vercel runtime, and matches the lecture
+citation model to the actual downstream answer format rather than an
+increasingly unreliable `references` side channel.

@@ -148,4 +148,38 @@ describe("POST /api/chat/stream", () => {
       targetKey: "two",
     })
   })
+
+  it("streams hydrated lecture citations from the server-owned normalization result", async () => {
+    vi.mocked(getExtractionChatTargets).mockReturnValue([
+      { key: "ISKCON Bangalore Lectures", label: "Lectures", notebookId: "nb-lecture" },
+    ])
+    vi.mocked(requestNormalizedChatResult).mockResolvedValueOnce({
+      answerBody: "Lecture answer [1].",
+      citations: [
+        {
+          number: 1,
+          text: "Hydrated lecture excerpt",
+          url: "https://youtu.be/SqSgsKehYQI?t=650",
+        },
+      ],
+      conversationId: null,
+      turnNumber: 1,
+      isFollowUp: false,
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat/stream", {
+        method: "POST",
+        body: JSON.stringify({ question: "What is tattvam?" }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }) as never,
+    )
+
+    const body = await response.text()
+
+    expect(body).toContain('"text":"Hydrated lecture excerpt"')
+    expect(body).toContain('"url":"https://youtu.be/SqSgsKehYQI?t=650"')
+  })
 })

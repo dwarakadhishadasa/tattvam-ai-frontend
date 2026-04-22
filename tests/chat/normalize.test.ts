@@ -280,6 +280,44 @@ describe("chat normalization", () => {
     ])
   })
 
+  it("rewrites lecture inline url citations to numeric citations and reuses first-occurrence numbers", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: [
+            "Lecture answer with inline citations[https://youtu.be/SqSgsKehYQI?t=650],",
+            " [https://youtu.be/Sqqw2JDxTfI?t=771], and",
+            " [https://youtu.be/SqSgsKehYQI?t=650].",
+          ].join(""),
+          references: [
+            {
+              citation_number: 44,
+              cited_text: "Legacy lecture blob that should not drive inline-url normalization",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.answerBody).toBe(
+      "Lecture answer with inline citations[1], [2], and [1].",
+    )
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 1,
+        text: "",
+        url: "https://youtu.be/SqSgsKehYQI?t=650",
+      },
+      {
+        number: 2,
+        text: "",
+        url: "https://youtu.be/Sqqw2JDxTfI?t=771",
+      },
+    ])
+  })
+
   it("deduplicates lecture citations by cited text and rewrites duplicate numbers to the first occurrence", () => {
     const normalized = normalizeDownstreamChatResponse(
       {

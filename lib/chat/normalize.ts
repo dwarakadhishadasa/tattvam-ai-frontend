@@ -35,6 +35,8 @@ type LectureCitationNormalization = {
   citations: Citation[]
 }
 
+const INLINE_URL_CITATION_PATTERN = /\[\s*(https?:\/\/[^\]\s<>"']+)\s*\]/g
+
 export function normalizeDownstreamChatResponse(
   data: DownstreamChatResponse | null | undefined,
   options?: NormalizeDownstreamChatOptions,
@@ -109,6 +111,63 @@ function normalizeLectureCitations(
   answerBody: string,
   references: DownstreamReference[],
 ): LectureCitationNormalization {
+  const inlineUrlNormalization = normalizeLectureInlineUrlCitations(answerBody)
+
+  if (inlineUrlNormalization) {
+    return inlineUrlNormalization
+  }
+
+  return normalizeLectureReferenceCitations(answerBody, references)
+}
+
+function normalizeLectureInlineUrlCitations(answerBody: string): LectureCitationNormalization | null {
+  const citationNumberByUrl = new Map<string, number>()
+  const citations: Citation[] = []
+  let nextCitationNumber = 1
+  let foundInlineUrlCitation = false
+
+  const rewrittenAnswerBody = answerBody.replace(
+    INLINE_URL_CITATION_PATTERN,
+    (fullMatch, rawUrl: string) => {
+      const canonicalUrl = normalizeLectureCitationUrl(rawUrl)
+
+      if (!canonicalUrl) {
+        return fullMatch
+      }
+
+      foundInlineUrlCitation = true
+
+      let citationNumber = citationNumberByUrl.get(canonicalUrl)
+
+      if (citationNumber === undefined) {
+        citationNumber = nextCitationNumber
+        nextCitationNumber += 1
+        citationNumberByUrl.set(canonicalUrl, citationNumber)
+        citations.push({
+          number: citationNumber,
+          text: "",
+          url: canonicalUrl,
+        })
+      }
+
+      return `[${citationNumber}]`
+    },
+  )
+
+  if (!foundInlineUrlCitation) {
+    return null
+  }
+
+  return {
+    answerBody: rewrittenAnswerBody,
+    citations,
+  }
+}
+
+function normalizeLectureReferenceCitations(
+  answerBody: string,
+  references: DownstreamReference[],
+): LectureCitationNormalization {
   const citedNumbers = new Set(getCitationNumbersFromText(answerBody))
 
   if (citedNumbers.size === 0) {
@@ -170,8 +229,8 @@ function normalizeLectureCitation(
   const citedText = typeof reference.cited_text === "string" ? reference.cited_text : ""
   const sections = extractLectureSections(citedText)
   const url =
-    normalizeExternalUrl(getReferenceUrlCandidate(reference)) ||
-    normalizeExternalUrl(sections.url) ||
+    normalizeLectureCitationUrl(getReferenceUrlCandidate(reference)) ||
+    normalizeLectureCitationUrl(sections.url) ||
     getYouTubeUrlFromText(citedText)
   const text = sections.content
 
@@ -220,6 +279,20 @@ function normalizeLectureDedupeKey(value: string | undefined): string {
   }
 
   return value.replace(/\r\n?/g, "\n").trim()
+}
+
+function normalizeLectureCitationUrl(value: string): string {
+  if (!value) {
+    return ""
+  }
+
+  const youtubeInfo = getYouTubeInfo(value)
+
+  if (youtubeInfo) {
+    return youtubeInfo.url
+  }
+
+  return normalizeExternalUrl(value)
 }
 
 function rewriteAnswerBodyCitationNumbers(

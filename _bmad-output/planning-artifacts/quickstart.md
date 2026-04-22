@@ -11,15 +11,25 @@ version.
 npm install
 ```
 
-2. Create `.env.local` with the runtime values the app expects:
+2. Create `.env.local` with the runtime values the app expects. For Vercel
+   parity, these should mirror the Development environment values stored in the
+   Vercel project:
 
 ```bash
-NEXT_PUBLIC_GEMINI_API_KEY=your_key_here
-TATTVAM_CHAT_API_URL=http://0.0.0.0:8000/v1/notebooks/da406743-a373-47f9-9275-6c2e1e86c2b6/chat/ask
+GEMINI_API_KEY=your_key_here
+TATTVAM_NOTEBOOK_BACKEND_ORIGIN=http://127.0.0.1:8000
+TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID=da406743-a373-47f9-9275-6c2e1e86c2b6
+TATTVAM_EXTRACTION_CHAT_TARGETS_JSON='[
+  {"key":"ISKCON Bangalore Lectures","label":"From Senior devotees lectures","notebookId":"da406743-a373-47f9-9275-6c2e1e86c2b6"},
+  {"key":"Bhaktivedanta NotebookLM","label":"From Srila Prabhupad'\''s books","notebookId":"09d526e1-8762-4a1b-897c-d4cafccafa53"},
+  {"key":"Srila Prabhupada Letters & Correspondence","label":"From Srila Prabhupad'\''s letters and correspondence","notebookId":"c93d81ab-2e8a-49ed-b6c2-99248603d8b5"},
+  {"key":"Srila Prabhupada Audio Transcripts","label":"From Srila Prabhupad'\''s audio transcripts","notebookId":"9234d4c1-c121-47ae-938f-721aa4c5b907"}
+]'
 ```
 
-Note: `README.md` currently references `GEMINI_API_KEY`, but the shipped frontend
-and route handlers use `NEXT_PUBLIC_GEMINI_API_KEY`.
+Note: runtime server code should prefer `GEMINI_API_KEY`. The
+`NEXT_PUBLIC_GEMINI_API_KEY` fallback is compatibility-only and should not be
+treated as the intended Vercel contract.
 
 3. Start the app:
 

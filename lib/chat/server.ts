@@ -1,6 +1,8 @@
 import { getDefaultExtractionChatUrl, getNotebookChatUrl } from "@/lib/backend/endpoints"
+import { getCitationContentByUrls } from "@/lib/chat/citation-content-store"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import type { NormalizedChatResult } from "@/lib/chat/shared"
+import { isLectureExtractionTargetKey } from "@/lib/chat/target-keys"
 import type { ExtractionChatTarget } from "@/lib/chat/targets"
 
 export const CHAT_BACKEND_UNAVAILABLE_MESSAGE =
@@ -81,7 +83,7 @@ export async function requestNormalizedChatResult(
     )
   }
 
-  return normalizedResponse.result
+  return hydrateLectureCitationText(normalizedResponse.result, options?.targetKey)
 }
 
 export async function readChatResponseBody(response: Response): Promise<unknown> {
@@ -118,5 +120,32 @@ async function forwardChatRequest(question: string, chatUrl: string): Promise<Re
     })
   } catch (error) {
     throw new ChatBackendUnavailableError(CHAT_BACKEND_UNAVAILABLE_MESSAGE, { cause: error })
+  }
+}
+
+async function hydrateLectureCitationText(
+  result: NormalizedChatResult,
+  targetKey: string | null | undefined,
+): Promise<NormalizedChatResult> {
+  if (!isLectureExtractionTargetKey(targetKey)) {
+    return result
+  }
+
+  const citationUrls = Array.from(
+    new Set(result.citations.map((citation) => citation.url).filter((url) => url.trim())),
+  )
+
+  if (citationUrls.length === 0) {
+    return result
+  }
+
+  const citationContentByUrl = await getCitationContentByUrls(citationUrls)
+
+  return {
+    ...result,
+    citations: result.citations.map((citation) => ({
+      ...citation,
+      text: citation.url ? (citationContentByUrl.get(citation.url) ?? "") : citation.text,
+    })),
   }
 }

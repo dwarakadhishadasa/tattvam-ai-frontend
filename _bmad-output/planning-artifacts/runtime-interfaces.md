@@ -255,6 +255,51 @@ data: {"totalTargets":4,"completedTargets":3,"failedTargets":1}
 - The route emits one `target.completed` or `target.failed` event per approved target.
 - The route always ends with one `chat.completed` event after all targets settle.
 
+## 5B. Lecture Citation Hydration Contract (Planned for Story 1.13)
+
+For target key `ISKCON Bangalore Lectures`, the server-normalization path will
+treat inline bracketed URLs in `answerBody` as the citation source of truth.
+
+### Server-Owned Lookup Input
+
+```json
+{
+  "targetKey": "ISKCON Bangalore Lectures",
+  "citationLookupKeys": [
+    "https://youtu.be/SqSgsKehYQI?t=650",
+    "https://youtu.be/Sqqw2JDxTfI?t=771"
+  ]
+}
+```
+
+### Server-Owned Lookup Result
+
+```json
+{
+  "citations": [
+    {
+      "number": 1,
+      "url": "https://youtu.be/SqSgsKehYQI?t=650",
+      "text": "Resolved lecture excerpt"
+    },
+    {
+      "number": 2,
+      "url": "https://youtu.be/Sqqw2JDxTfI?t=771",
+      "text": ""
+    }
+  ]
+}
+```
+
+### Notes
+
+- This is an internal server contract, not a browser-visible Supabase contract.
+- The lookup store is Supabase, reached only from server modules or route
+  handlers running on the Node.js runtime.
+- Missing rows must degrade to an empty `text` string rather than fail the chat
+  result.
+- Non-lecture targets remain on the existing numeric/reference path.
+
 ## 6. Notebook Compilation Contract
 
 There is no backend notebook API in the active flow.
@@ -343,19 +388,38 @@ If generation fails:
 
 ## 9. Environment Contract
 
-The current runtime expects:
+The Vercel deployment contract is:
 
 ```text
-NEXT_PUBLIC_GEMINI_API_KEY
-TATTVAM_CHAT_API_URL (recommended for configurability; default may point at the current notebook chat endpoint)
+GEMINI_API_KEY
+TATTVAM_NOTEBOOK_BACKEND_ORIGIN
+TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID
+TATTVAM_EXTRACTION_CHAT_TARGETS_JSON
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+TATTVAM_LECTURE_CITATIONS_TABLE
 ```
 
-This is used by:
-- `components/SettingsModal.tsx`
-- `app/api/lecture/yatra/route.ts`
+Usage:
 
-`TATTVAM_CHAT_API_URL` is used by the server-side chat adapter or route that
-forwards extraction chat requests to the notebook backend.
+- `GEMINI_API_KEY` is the server-side source of truth for Gemini-backed routes.
+  `NEXT_PUBLIC_GEMINI_API_KEY` is legacy fallback compatibility only and should
+  not be required for Vercel deployments.
+- `TATTVAM_NOTEBOOK_BACKEND_ORIGIN` routes server-side notebook traffic from
+  `/api/chat`, `/api/chat/stream`, `/api/notebooks`, and slide-related helpers.
+- `TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID` configures the legacy single-target
+  `POST /api/chat` route.
+- `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` configures the approved four-target
+  fan-out for `POST /api/chat/stream`.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and the optional citation-table
+  variable configure the server-owned lecture citation lookup store planned for
+  Story 1.13.
 
-Any deployment or local setup that only provides `GEMINI_API_KEY` will not match the
-current implementation for Gemini-backed flows.
+Deployment notes:
+
+- Production, Preview, and Development must each define their own environment
+  values in Vercel.
+- Preview deployments should default to non-production notebook and Supabase
+  resources unless intentionally overridden.
+- Browser code should continue calling same-origin `/api/*` routes and must not
+  read notebook or Supabase secrets directly.
