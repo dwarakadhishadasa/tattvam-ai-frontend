@@ -1,4 +1,5 @@
 import {
+  getNotebookBackendAuthHeaders,
   getNotebookArtifactDownloadUrl,
   getNotebookArtifactGenerateUrl,
   getNotebookArtifactTaskUrl,
@@ -102,7 +103,10 @@ export async function downloadSlideDeckJob(
   taskId: string,
 ): Promise<Response> {
   try {
+    const headers = getNotebookBackendAuthHeaders()
+
     return await fetch(getNotebookArtifactDownloadUrl(notebookId, taskId), {
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
       cache: "no-store",
     })
   } catch (error) {
@@ -119,6 +123,7 @@ export async function requestSlideDeckJob(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getNotebookBackendAuthHeaders(),
       },
       body: JSON.stringify({
         type: "slide_deck",
@@ -138,7 +143,10 @@ export async function requestSlideDeckJobStatus(
   taskId: string,
 ): Promise<Response> {
   try {
+    const headers = getNotebookBackendAuthHeaders()
+
     return await fetch(getNotebookArtifactTaskUrl(notebookId, taskId), {
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
       cache: "no-store",
     })
   } catch (error) {

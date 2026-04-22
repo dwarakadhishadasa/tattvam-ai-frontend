@@ -1,4 +1,8 @@
-import { getDefaultExtractionChatUrl, getNotebookChatUrl } from "@/lib/backend/endpoints"
+import {
+  getDefaultExtractionChatUrl,
+  getNotebookBackendAuthHeaders,
+  getNotebookChatUrl,
+} from "@/lib/backend/endpoints"
 import { getCitationContentByUrls } from "@/lib/chat/citation-content-store"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import type { NormalizedChatResult } from "@/lib/chat/shared"
@@ -114,6 +118,7 @@ async function forwardChatRequest(question: string, chatUrl: string): Promise<Re
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getNotebookBackendAuthHeaders(),
       },
       body: JSON.stringify({ question }),
       cache: "no-store",

@@ -1,4 +1,8 @@
-import { getNotebookSetSourceUrl, getNotebooksUrl } from "@/lib/backend/endpoints"
+import {
+  getNotebookBackendAuthHeaders,
+  getNotebookSetSourceUrl,
+  getNotebooksUrl,
+} from "@/lib/backend/endpoints"
 
 export const NOTEBOOK_BACKEND_UNAVAILABLE_MESSAGE =
   "Notebook backend is unavailable. Start the notebook service or set TATTVAM_NOTEBOOK_BACKEND_ORIGIN to a reachable backend origin."
@@ -22,6 +26,7 @@ export async function requestNotebookCreation(title: string): Promise<Response> 
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getNotebookBackendAuthHeaders(),
       },
       body: JSON.stringify({ title }),
       cache: "no-store",
@@ -45,6 +50,7 @@ export async function requestNotebookTextSourceCreation(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getNotebookBackendAuthHeaders(),
       },
       body: JSON.stringify({ title, content }),
       cache: "no-store",

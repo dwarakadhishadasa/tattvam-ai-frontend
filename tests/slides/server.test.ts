@@ -11,6 +11,7 @@ import * as backendEndpoints from "../../lib/backend/endpoints"
 describe("slides server helpers", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("starts artifact jobs through the shared endpoint builder", async () => {
@@ -109,6 +110,48 @@ describe("slides server helpers", () => {
       message: SLIDES_BACKEND_UNAVAILABLE_MESSAGE,
       name: "SlidesBackendUnavailableError",
     })
+  })
+
+  it("includes the notebook backend API key header when configured", async () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_API_KEY", "secret-key")
+    vi.spyOn(backendEndpoints, "getNotebookArtifactGenerateUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks/notebook-1/artifacts/generate",
+    )
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: {
+            task_id: "task-123",
+            status: "pending",
+            error: null,
+            error_code: null,
+            metadata: null,
+          },
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await startSlideDeckJob("notebook-1", "visual style")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/v1/notebooks/notebook-1/artifacts/generate",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": "secret-key",
+        },
+        body: JSON.stringify({
+          type: "slide_deck",
+          options: {
+            instructions: "visual style",
+          },
+        }),
+        cache: "no-store",
+      },
+    )
   })
 
   it("exposes the transport error type to the route layer", async () => {

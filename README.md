@@ -26,6 +26,8 @@ No notebook, Gemini, or Supabase secrets should be read from browser code.
    - `TATTVAM_NOTEBOOK_BACKEND_ORIGIN` for the external notebook backend
      boundary, for example `http://127.0.0.1:8000` locally or
      `https://tattvam-ai-backend-two.vercel.app` in Vercel
+   - `TATTVAM_NOTEBOOK_BACKEND_API_KEY` when the notebook backend requires
+     server-to-server `X-API-Key` authentication
    - `TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID` for the legacy single-target
      `POST /api/chat` route
    - `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` for the approved four-target
@@ -55,6 +57,7 @@ Provision these variables in Vercel for the environments that need them:
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes | Server-side Gemini access |
 | `TATTVAM_NOTEBOOK_BACKEND_ORIGIN` | Yes | External notebook backend origin used by server routes |
+| `TATTVAM_NOTEBOOK_BACKEND_API_KEY` | If backend protected | Server-only `X-API-Key` forwarded to notebook backend routes |
 | `TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID` | Yes | Legacy single-target notebook id for `POST /api/chat` |
 | `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` | Yes | Approved four-target registry for `POST /api/chat/stream` |
 | `SUPABASE_URL` | Story 1.13 | Supabase project URL for lecture citation hydration |

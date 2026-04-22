@@ -11,6 +11,7 @@ import * as backendEndpoints from "../../lib/backend/endpoints"
 describe("notebook server transport failures", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("resolves notebook creation through the shared collection builder", async () => {
@@ -69,6 +70,28 @@ describe("notebook server transport failures", () => {
     await expect(requestNotebookCreation("Lecture Workspace")).rejects.toMatchObject({
       message: NOTEBOOK_BACKEND_UNAVAILABLE_MESSAGE,
       name: "NotebookBackendUnavailableError",
+    })
+  })
+
+  it("includes the notebook backend API key header when configured", async () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_API_KEY", "secret-key")
+    vi.spyOn(backendEndpoints, "getNotebooksUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks",
+    )
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+
+    await requestNotebookCreation("Lecture Workspace")
+
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:8000/v1/notebooks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": "secret-key",
+      },
+      body: JSON.stringify({ title: "Lecture Workspace" }),
+      cache: "no-store",
     })
   })
 

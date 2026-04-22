@@ -10,6 +10,7 @@ import {
   getNotebookArtifactDownloadUrl,
   getNotebookArtifactGenerateUrl,
   getNotebookArtifactTaskUrl,
+  getNotebookBackendAuthHeaders,
   getNotebookBackendOrigin,
   getNotebookChatUrl,
   getNotebookSetSourceUrl,
@@ -86,6 +87,20 @@ describe("backend endpoint builders", () => {
     expect(() => getNotebooksUrl()).toThrowError(
       "TATTVAM_NOTEBOOK_BACKEND_ORIGIN must be a valid absolute URL",
     )
+  })
+
+  it("builds backend auth headers from a trimmed notebook API key when configured", () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_API_KEY", " secret-key ")
+
+    expect(getNotebookBackendAuthHeaders()).toEqual({
+      "X-API-Key": "secret-key",
+    })
+  })
+
+  it("omits backend auth headers when no notebook API key is configured", () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_API_KEY", "   ")
+
+    expect(getNotebookBackendAuthHeaders()).toEqual({})
   })
 
   it("rejects blank per-call notebook ids after trimming", () => {

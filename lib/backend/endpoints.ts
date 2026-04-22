@@ -53,6 +53,14 @@ export function getNotebookBackendOrigin(
   return `${parsedOrigin.origin}${normalizedPathname}${parsedOrigin.search}${parsedOrigin.hash}`
 }
 
+export function getNotebookBackendAuthHeaders(
+  rawApiKey = process.env.TATTVAM_NOTEBOOK_BACKEND_API_KEY,
+): Record<string, string> {
+  const apiKey = rawApiKey?.trim() || ""
+
+  return apiKey ? { "X-API-Key": apiKey } : {}
+}
+
 function getDefaultNotebookBackendOrigin(): string {
   return process.env.VERCEL === "1" || process.env.NODE_ENV === "production"
     ? DEFAULT_VERCEL_NOTEBOOK_BACKEND_ORIGIN

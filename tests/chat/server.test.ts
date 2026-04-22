@@ -16,6 +16,7 @@ import * as chatNormalize from "../../lib/chat/normalize"
 describe("chat server transport failures", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it("resolves the default extraction chat target through the shared endpoint builder", async () => {
@@ -122,6 +123,31 @@ describe("chat server transport failures", () => {
         },
       },
       { targetKey: "ISKCON Bangalore Lectures" },
+    )
+  })
+
+  it("includes the notebook backend API key header when configured", async () => {
+    vi.stubEnv("TATTVAM_NOTEBOOK_BACKEND_API_KEY", "secret-key")
+    vi.spyOn(backendEndpoints, "getDefaultExtractionChatUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks/extraction-id/chat/ask",
+    )
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+
+    await forwardChatQuestion("hello")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/v1/notebooks/extraction-id/chat/ask",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": "secret-key",
+        },
+        body: JSON.stringify({ question: "hello" }),
+        cache: "no-store",
+      },
     )
   })
 
