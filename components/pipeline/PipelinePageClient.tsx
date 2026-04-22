@@ -468,12 +468,16 @@ export default function PipelinePageClient() {
       })
     } catch (error) {
       console.error("Chat error:", error)
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Error connecting to the AI."
       setMessages((previousMessages) => [
         ...previousMessages,
         {
           id: Date.now().toString(),
           role: "assistant",
-          content: "Error connecting to the AI.",
+          content: message,
           status: "error",
         },
       ])

@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    console.error("POST /api/chat/stream failed", error)
+
     if (
       isNotebookBackendConfigurationError(error) ||
       isExtractionChatTargetsConfigurationError(error)

@@ -106,6 +106,25 @@ describe("chat stream client helpers", () => {
       failedTargets: 1,
     })
   })
+
+  it("throws the route error message when streaming fails before SSE begins", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "TATTVAM_EXTRACTION_CHAT_TARGETS_JSON is required" }), {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+    )
+
+    await expect(
+      streamChatQuestion("What is tattvam?", {
+        onTargetCompleted: vi.fn(),
+        onTargetFailed: vi.fn(),
+        onChatCompleted: vi.fn(),
+      }),
+    ).rejects.toThrow("TATTVAM_EXTRACTION_CHAT_TARGETS_JSON is required")
+  })
 })
 
 function createEventStream(chunks: string[]): ReadableStream<Uint8Array> {
