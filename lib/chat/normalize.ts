@@ -1,5 +1,5 @@
 import { getYouTubeInfo } from "@/lib/youtube"
-import { getCitationNumbersFromText } from "@/lib/chat/citation-ranges"
+import { expandCitationRange, getCitationNumbersFromText } from "@/lib/chat/citation-ranges"
 import type { ChatRouteSuccessResponse, Citation, NormalizedChatResult } from "@/lib/chat/shared"
 import { isLectureExtractionTargetKey } from "@/lib/chat/target-keys"
 
@@ -30,6 +30,11 @@ type NormalizeDownstreamChatOptions = {
   targetKey?: string | null
 }
 
+type LectureCitationNormalization = {
+  answerBody: string
+  citations: Citation[]
+}
+
 export function normalizeDownstreamChatResponse(
   data: DownstreamChatResponse | null | undefined,
   options?: NormalizeDownstreamChatOptions,
@@ -49,14 +54,17 @@ export function normalizeDownstreamResult(
   options?: NormalizeDownstreamChatOptions,
 ): NormalizedChatResult {
   const answer = result.answer ?? ""
-  const answerBody = stripCitationAppendix(answer)
+  const strippedAnswerBody = stripCitationAppendix(answer)
   const appendixStart = findCitationAppendixStart(answer)
   const appendixText = appendixStart === -1 ? "" : answer.slice(appendixStart)
   const appendixUrls = extractCitationUrls(appendixText)
   const references = Array.isArray(result.references) ? result.references : []
-  const citations = isLectureExtractionTargetKey(options?.targetKey)
-    ? normalizeLectureCitations(answerBody, references)
-    : normalizeGenericCitations(references, appendixUrls)
+  const normalizedLectureResult = isLectureExtractionTargetKey(options?.targetKey)
+    ? normalizeLectureCitations(strippedAnswerBody, references)
+    : null
+  const answerBody = normalizedLectureResult?.answerBody ?? strippedAnswerBody
+  const citations =
+    normalizedLectureResult?.citations ?? normalizeGenericCitations(references, appendixUrls)
 
   return {
     answerBody,
@@ -100,26 +108,53 @@ function normalizeGenericCitations(
 function normalizeLectureCitations(
   answerBody: string,
   references: DownstreamReference[],
-): Citation[] {
+): LectureCitationNormalization {
   const citedNumbers = new Set(getCitationNumbersFromText(answerBody))
 
   if (citedNumbers.size === 0) {
-    return []
+    return {
+      answerBody,
+      citations: [],
+    }
   }
 
   const citationsByNumber = new Map<number, Citation>()
+  const canonicalNumberByText = new Map<string, number>()
+  const canonicalNumberByOriginal = new Map<number, number>()
 
   for (const reference of references) {
     const citation = normalizeLectureCitation(reference, citedNumbers)
 
-    if (!citation || citationsByNumber.has(citation.number)) {
+    if (!citation) {
       continue
     }
 
+    if (citationsByNumber.has(citation.number)) {
+      canonicalNumberByOriginal.set(citation.number, citation.number)
+      continue
+    }
+
+    const dedupeKey = normalizeLectureDedupeKey(reference.cited_text)
+
+    if (dedupeKey) {
+      const canonicalNumber = canonicalNumberByText.get(dedupeKey)
+
+      if (canonicalNumber !== undefined) {
+        canonicalNumberByOriginal.set(citation.number, canonicalNumber)
+        continue
+      }
+
+      canonicalNumberByText.set(dedupeKey, citation.number)
+    }
+
     citationsByNumber.set(citation.number, citation)
+    canonicalNumberByOriginal.set(citation.number, citation.number)
   }
 
-  return Array.from(citationsByNumber.values()).sort((left, right) => left.number - right.number)
+  return {
+    answerBody: rewriteAnswerBodyCitationNumbers(answerBody, canonicalNumberByOriginal),
+    citations: Array.from(citationsByNumber.values()).sort((left, right) => left.number - right.number),
+  }
 }
 
 function normalizeLectureCitation(
@@ -177,6 +212,31 @@ function extractLectureSections(text: string): { url: string; content: string } 
     url: sections.get("url") ?? "",
     content: sections.get("content") ?? "",
   }
+}
+
+function normalizeLectureDedupeKey(value: string | undefined): string {
+  if (typeof value !== "string") {
+    return ""
+  }
+
+  return value.replace(/\r\n?/g, "\n").trim()
+}
+
+function rewriteAnswerBodyCitationNumbers(
+  answerBody: string,
+  canonicalNumberByOriginal: Map<number, number>,
+): string {
+  return answerBody.replace(/\[([\d\s,\-]+)\]/g, (fullMatch, rangeText: string) => {
+    const rewrittenNumbers = expandCitationRange(rangeText)
+      .map((number) => canonicalNumberByOriginal.get(number) ?? number)
+      .filter((number, index, numbers) => numbers.indexOf(number) === index)
+
+    if (rewrittenNumbers.length === 0) {
+      return fullMatch
+    }
+
+    return `[${rewrittenNumbers.join(", ")}]`
+  })
 }
 
 export function stripCitationAppendix(answer: string): string {

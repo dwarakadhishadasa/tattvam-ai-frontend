@@ -43,4 +43,10 @@ describe("chat shared helpers", () => {
       "Answer body with inline references [[2]](#citation-2)[[7]](#citation-7)[[8]](#citation-8)[[9]](#citation-9)[[10]](#citation-10).",
     )
   })
+
+  it("linkifies rewritten canonical comma-separated citation lists without lecture-specific logic", () => {
+    expect(formatAssistantAnswer("Answer body with rewritten references [1, 4, 20].")).toBe(
+      "Answer body with rewritten references [[1]](#citation-1)[[4]](#citation-4)[[20]](#citation-20).",
+    )
+  })
 })

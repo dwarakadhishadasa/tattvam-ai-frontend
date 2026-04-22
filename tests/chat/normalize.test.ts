@@ -280,6 +280,129 @@ describe("chat normalization", () => {
     ])
   })
 
+  it("deduplicates lecture citations by cited text and rewrites duplicate numbers to the first occurrence", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Lecture answer with duplicates [1], [5], [10, 15], [4], [8], [13, 18], and [20].",
+          references: [
+            {
+              citation_number: 1,
+              cited_text:
+                "Themes: Bhakti\r\nURL: https://www.youtube.com/watch?v=AAAAABBBBB1&t=11s\r\nContent: First cluster excerpt",
+            },
+            {
+              citation_number: 5,
+              cited_text:
+                "Themes: Bhakti\nURL: https://www.youtube.com/watch?v=AAAAABBBBB1&t=11s\nContent: First cluster excerpt\n",
+            },
+            {
+              citation_number: 10,
+              cited_text:
+                "Themes: Bhakti\nURL: https://www.youtube.com/watch?v=AAAAABBBBB1&t=11s\nContent: First cluster excerpt",
+            },
+            {
+              citation_number: 15,
+              cited_text:
+                "Themes: Bhakti\nURL: https://www.youtube.com/watch?v=AAAAABBBBB1&t=11s\nContent: First cluster excerpt",
+            },
+            {
+              citation_number: 4,
+              cited_text:
+                "Themes: Service\nURL: https://www.youtube.com/watch?v=CCCCCDDDDD4&t=44s\nContent: Second cluster excerpt",
+            },
+            {
+              citation_number: 8,
+              cited_text:
+                "Themes: Service\nURL: https://www.youtube.com/watch?v=CCCCCDDDDD4&t=44s\nContent: Second cluster excerpt",
+            },
+            {
+              citation_number: 13,
+              cited_text:
+                "Themes: Service\nURL: https://www.youtube.com/watch?v=CCCCCDDDDD4&t=44s\nContent: Second cluster excerpt",
+            },
+            {
+              citation_number: 18,
+              cited_text:
+                "Themes: Service\nURL: https://www.youtube.com/watch?v=CCCCCDDDDD4&t=44s\nContent: Second cluster excerpt",
+            },
+            {
+              citation_number: 20,
+              cited_text:
+                "Themes: Philosophy\nURL: https://www.youtube.com/watch?v=EEEEEFFFFF0&t=200s\nContent: Sparse citation excerpt",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.answerBody).toBe(
+      "Lecture answer with duplicates [1], [1], [1], [4], [4], [4], and [20].",
+    )
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 1,
+        text: "First cluster excerpt",
+        url: "https://www.youtube.com/watch?v=AAAAABBBBB1&t=11s",
+      },
+      {
+        number: 4,
+        text: "Second cluster excerpt",
+        url: "https://www.youtube.com/watch?v=CCCCCDDDDD4&t=44s",
+      },
+      {
+        number: 20,
+        text: "Sparse citation excerpt",
+        url: "https://www.youtube.com/watch?v=EEEEEFFFFF0&t=200s",
+      },
+    ])
+  })
+
+  it("collapses duplicate canonical numbers inside one rewritten lecture citation token", () => {
+    const normalized = normalizeDownstreamChatResponse(
+      {
+        ok: true,
+        result: {
+          answer: "Lecture answer with grouped duplicates [5, 1, 10, 15].",
+          references: [
+            {
+              citation_number: 1,
+              cited_text:
+                "URL: https://www.youtube.com/watch?v=GROUPAAAAA1&t=15s\nContent: Canonical excerpt",
+            },
+            {
+              citation_number: 5,
+              cited_text:
+                "URL: https://www.youtube.com/watch?v=GROUPAAAAA1&t=15s\nContent: Canonical excerpt",
+            },
+            {
+              citation_number: 10,
+              cited_text:
+                "URL: https://www.youtube.com/watch?v=GROUPAAAAA1&t=15s\nContent: Canonical excerpt",
+            },
+            {
+              citation_number: 15,
+              cited_text:
+                "URL: https://www.youtube.com/watch?v=GROUPAAAAA1&t=15s\nContent: Canonical excerpt",
+            },
+          ],
+        },
+      },
+      { targetKey: "ISKCON Bangalore Lectures" },
+    )
+
+    expect(normalized?.result.answerBody).toBe("Lecture answer with grouped duplicates [1].")
+    expect(normalized?.result.citations).toEqual([
+      {
+        number: 1,
+        text: "Canonical excerpt",
+        url: "https://www.youtube.com/watch?v=GROUPAAAAA1&t=15s",
+      },
+    ])
+  })
+
   it("does not apply the lecture parser to non-lecture targets", () => {
     const normalized = normalizeDownstreamChatResponse(
       {
@@ -298,6 +421,7 @@ describe("chat normalization", () => {
       { targetKey: "Bhaktivedanta NotebookLM" },
     )
 
+    expect(normalized?.result.answerBody).toBe("Answer body with inline reference [3].")
     expect(normalized?.result.citations).toEqual([
       {
         number: 3,

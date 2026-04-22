@@ -17,6 +17,7 @@ workflowType: 'architecture'
 project_name: 'tattvam-ai-frontend'
 user_name: 'Dwaraka'
 date: '2026-03-27'
+lastStep: 3
 ---
 
 # Architecture Decision Document
