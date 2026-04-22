@@ -5,7 +5,7 @@ Next.js routes under `/api/*`, and those server routes own communication with:
 
 - Gemini via `GEMINI_API_KEY`
 - The notebook backend via `TATTVAM_NOTEBOOK_BACKEND_ORIGIN`
-- The planned Story 1.13 citation store via server-only Supabase variables
+- The Story 1.13 citation store via server-only Postgres variables
 
 No notebook, Gemini, or Supabase secrets should be read from browser code.
 
@@ -32,9 +32,11 @@ No notebook, Gemini, or Supabase secrets should be read from browser code.
      `POST /api/chat` route
    - `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` for the approved four-target
      `POST /api/chat/stream` fan-out
-   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optional
+   - `TATTVAM_LECTURE_CITATIONS_DATABASE_URL` and optional
      `TATTVAM_LECTURE_CITATIONS_TABLE` for the server-only lecture citation
-     store planned in Story 1.13
+     store in Story 1.13
+   - or platform-provided `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` when a
+     dedicated citation-store URL is not set
 4. For the current multi-target extraction phase,
    `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` must contain exactly these four
    approved targets with stable keys and labels:
@@ -60,8 +62,9 @@ Provision these variables in Vercel for the environments that need them:
 | `TATTVAM_NOTEBOOK_BACKEND_API_KEY` | If backend protected | Server-only `X-API-Key` forwarded to notebook backend routes |
 | `TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID` | Yes | Legacy single-target notebook id for `POST /api/chat` |
 | `TATTVAM_EXTRACTION_CHAT_TARGETS_JSON` | Yes | Approved four-target registry for `POST /api/chat/stream` |
-| `SUPABASE_URL` | Story 1.13 | Supabase project URL for lecture citation hydration |
-| `SUPABASE_SERVICE_ROLE_KEY` | Story 1.13 | Server-only Supabase key for lecture citation hydration |
+| `TATTVAM_LECTURE_CITATIONS_DATABASE_URL` | Story 1.13 | Dedicated Postgres URL for lecture citation hydration |
+| `POSTGRES_URL` | Optional fallback | Pooled Postgres URL used when the dedicated citation-store URL is unset |
+| `POSTGRES_URL_NON_POOLING` | Optional fallback | Non-pooled Postgres URL used when pooled Postgres is unavailable |
 | `TATTVAM_LECTURE_CITATIONS_TABLE` | Optional | Override for the lecture citation table name if the default changes |
 
 Guidance:
@@ -70,7 +73,7 @@ Guidance:
 - If Vercel is missing `TATTVAM_NOTEBOOK_BACKEND_ORIGIN`, the app now falls back
   to `https://tattvam-ai-backend-two.vercel.app` instead of localhost, but the
   variable should still be set explicitly per environment.
-- Preview should point at preview-safe notebook and Supabase resources unless the
+- Preview should point at preview-safe notebook and Postgres resources unless the
   team explicitly accepts shared production dependencies.
 - Browser traffic should remain same-origin to `/api/*`; the browser should never
-  call notebook or Supabase hosts directly.
+  call notebook or database hosts directly.
