@@ -46,6 +46,14 @@ describe("chat stream client helpers", () => {
     })
   })
 
+  it("ignores malformed sse payloads instead of throwing during stream parsing", () => {
+    expect(
+      parseChatStreamMessage(
+        'event: target.failed\ndata: Internal Server Error',
+      ),
+    ).toBeNull()
+  })
+
   it("consumes a streamed response incrementally and dispatches callbacks", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
@@ -124,6 +132,25 @@ describe("chat stream client helpers", () => {
         onChatCompleted: vi.fn(),
       }),
     ).rejects.toThrow("TATTVAM_EXTRACTION_CHAT_TARGETS_JSON is required")
+  })
+
+  it("surfaces plain-text route failures before SSE begins", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("Internal Server Error", {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+      }),
+    )
+
+    await expect(
+      streamChatQuestion("What is tattvam?", {
+        onTargetCompleted: vi.fn(),
+        onTargetFailed: vi.fn(),
+        onChatCompleted: vi.fn(),
+      }),
+    ).rejects.toThrow("Internal Server Error")
   })
 })
 

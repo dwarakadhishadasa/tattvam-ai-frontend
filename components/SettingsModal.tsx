@@ -17,6 +17,8 @@ import { useDropzone } from "react-dropzone"
 
 import Image from "next/image"
 
+import { getResponseErrorMessage, readResponseBody } from "@/lib/http/response"
+
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
@@ -56,16 +58,17 @@ export default function SettingsModal({
         body: JSON.stringify({ imageDataUrl: imageData }),
       })
 
-      const data = (await response.json()) as { style?: unknown; error?: unknown }
+      const data = await readResponseBody(response)
 
       if (!response.ok) {
-        const errorMessage =
-          typeof data.error === "string" ? data.error : "Failed to extract visual style"
-        setExtractedStyle(errorMessage)
+        setExtractedStyle(getResponseErrorMessage(data, "Failed to extract visual style"))
         return
       }
 
-      const styleText = typeof data.style === "string" ? data.style : "Could not extract style."
+      const styleText =
+        data && typeof data === "object" && "style" in data && typeof data.style === "string"
+          ? data.style
+          : "Could not extract style."
       setExtractedStyle(styleText)
     } catch (error) {
       console.error("Style extraction error:", error)

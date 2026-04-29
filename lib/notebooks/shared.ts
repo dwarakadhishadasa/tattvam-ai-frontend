@@ -1,3 +1,5 @@
+import { getResponseErrorMessage } from "@/lib/http/response"
+
 export type NotebookSummary = {
   id: string
   title: string
@@ -71,18 +73,10 @@ export function normalizeCreateNotebookResponse(
 }
 
 export function getNotebookBackendErrorMessage(
-  data: Record<string, unknown>,
+  data: unknown,
   fallbackMessage = DEFAULT_NOTEBOOK_BACKEND_ERROR_MESSAGE,
 ): string {
-  if (typeof data.error === "string" && data.error.trim()) {
-    return data.error
-  }
-
-  if (typeof data.detail === "string" && data.detail.trim()) {
-    return data.detail
-  }
-
-  return fallbackMessage
+  return getResponseErrorMessage(data, fallbackMessage)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

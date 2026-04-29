@@ -9,6 +9,7 @@ import {
   normalizeBackendArtifactPayload,
   getSlidesRouteErrorMessage,
 } from "@/lib/slides/shared"
+import { readResponseBody } from "@/lib/http/response"
 
 export const SLIDES_BACKEND_UNAVAILABLE_MESSAGE =
   "Slide deck backend is unavailable. Start the notebook service or set TATTVAM_NOTEBOOK_BACKEND_ORIGIN to a reachable backend origin."
@@ -155,11 +156,5 @@ export async function requestSlideDeckJobStatus(
 }
 
 export async function readSlidesResponseBody(response: Response): Promise<unknown> {
-  const rawText = await response.text()
-
-  if (!rawText) {
-    return null
-  }
-
-  return JSON.parse(rawText) as unknown
+  return readResponseBody(response)
 }

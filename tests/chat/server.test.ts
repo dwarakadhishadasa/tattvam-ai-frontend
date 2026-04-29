@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}))
 
 import {
   CHAT_BACKEND_UNAVAILABLE_MESSAGE,
+  ChatBackendResponseError,
   ChatBackendUnavailableError,
   forwardChatQuestion,
   forwardChatQuestionToNotebook,
@@ -124,6 +125,26 @@ describe("chat server transport failures", () => {
       },
       { targetKey: "ISKCON Bangalore Lectures" },
     )
+  })
+
+  it("surfaces plain-text backend failures without throwing a JSON parse error", async () => {
+    vi.spyOn(backendEndpoints, "getNotebookChatUrl").mockReturnValue(
+      "http://127.0.0.1:8000/v1/notebooks/target-id/chat/ask",
+    )
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("Internal Server Error", {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+      }),
+    )
+
+    await expect(requestNormalizedChatResult("hello", "target-id")).rejects.toMatchObject({
+      message: "Internal Server Error",
+      name: "ChatBackendResponseError",
+      status: 500,
+    } satisfies Partial<ChatBackendResponseError>)
   })
 
   it("includes the notebook backend API key header when configured", async () => {

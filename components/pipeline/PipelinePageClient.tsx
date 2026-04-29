@@ -60,6 +60,7 @@ import {
   stripCitationAppendix,
   type Citation,
 } from "@/lib/chat/shared"
+import { getResponseErrorMessage, readResponseBody } from "@/lib/http/response"
 import type { SlideDeckJobResponse } from "@/lib/slides/shared"
 import type { CreateNotebookResponse } from "@/lib/notebooks/shared"
 
@@ -817,20 +818,11 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
     },
   })
 
-  const data = (await response.json()) as T & {
-    error?: unknown
-    detail?: unknown
-  }
+  const data = await readResponseBody(response)
 
   if (!response.ok) {
-    const message =
-      typeof data.error === "string"
-        ? data.error
-        : typeof data.detail === "string"
-          ? data.detail
-          : "Request failed"
-    throw new Error(message)
+    throw new Error(getResponseErrorMessage(data, "Request failed"))
   }
 
-  return data
+  return data as T
 }

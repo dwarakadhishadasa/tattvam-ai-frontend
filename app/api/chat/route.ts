@@ -25,12 +25,9 @@ export async function POST(request: NextRequest) {
     const data = await readChatResponseBody(backendResponse)
 
     if (!backendResponse.ok) {
-      const errorPayload =
-        typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {}
-
       return NextResponse.json(
         {
-          error: getDownstreamChatErrorMessage(errorPayload),
+          error: getDownstreamChatErrorMessage(data),
         },
         { status: backendResponse.status },
       )

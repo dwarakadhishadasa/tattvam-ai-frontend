@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { isNotebookBackendConfigurationError } from "@/lib/backend/endpoints"
+import { readResponseBody } from "@/lib/http/response"
 import {
   getNotebookBackendErrorMessage,
   normalizeCreateAndSeedNotebookRequest,
@@ -26,16 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     const backendResponse = await requestNotebookCreation(normalizedRequest.title)
-    const rawText = await backendResponse.text()
-    const data = rawText ? (JSON.parse(rawText) as unknown) : null
+    const data = await readResponseBody(backendResponse)
 
     if (!backendResponse.ok) {
-      const errorPayload =
-        typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {}
-
       return NextResponse.json(
         {
-          error: getNotebookBackendErrorMessage(errorPayload),
+          error: getNotebookBackendErrorMessage(data),
         },
         { status: backendResponse.status },
       )
@@ -55,19 +52,13 @@ export async function POST(request: NextRequest) {
       normalizedRequest.sourceTitle,
       normalizedRequest.sourceText,
     )
-    const rawSourceText = await textSourceResponse.text()
-    const sourceData = rawSourceText ? (JSON.parse(rawSourceText) as unknown) : null
+    const sourceData = await readResponseBody(textSourceResponse)
 
     if (!textSourceResponse.ok) {
-      const errorPayload =
-        typeof sourceData === "object" && sourceData !== null
-          ? (sourceData as Record<string, unknown>)
-          : {}
-
       return NextResponse.json(
         {
           error: getNotebookBackendErrorMessage(
-            errorPayload,
+            sourceData,
             "Failed to seed notebook source text from the notebook backend",
           ),
         },

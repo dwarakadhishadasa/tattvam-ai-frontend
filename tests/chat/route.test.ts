@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+vi.mock("server-only", () => ({}))
+
 import { POST } from "../../app/api/chat/route"
 
 vi.mock("../../lib/chat/server", async () => {
@@ -81,6 +83,34 @@ describe("POST /api/chat", () => {
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({
       error: "TATTVAM_EXTRACTION_CHAT_NOTEBOOK_ID is required",
+    })
+  })
+
+  it("preserves plain-text backend failures instead of leaking a JSON parse error", async () => {
+    vi.mocked(forwardChatQuestion).mockResolvedValueOnce(
+      new Response("Internal Server Error", {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+      }),
+    )
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          question: "What is tattvam?",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }) as never,
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
     })
   })
 })

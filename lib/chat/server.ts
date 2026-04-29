@@ -9,6 +9,7 @@ import {
 } from "@/lib/chat/citation-content-store"
 import { normalizeDownstreamChatResponse } from "@/lib/chat/normalize"
 import type { NormalizedChatResult } from "@/lib/chat/shared"
+import { getResponseErrorMessage, readResponseBody } from "@/lib/http/response"
 import { isLectureExtractionTargetKey } from "@/lib/chat/target-keys"
 import type { ExtractionChatTarget } from "@/lib/chat/targets"
 
@@ -69,11 +70,8 @@ export async function requestNormalizedChatResult(
   const data = await readChatResponseBody(backendResponse)
 
   if (!backendResponse.ok) {
-    const errorPayload =
-      typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {}
-
     throw new ChatBackendResponseError(
-      getDownstreamChatErrorMessage(errorPayload),
+      getDownstreamChatErrorMessage(data),
       backendResponse.status,
     )
   }
@@ -94,25 +92,11 @@ export async function requestNormalizedChatResult(
 }
 
 export async function readChatResponseBody(response: Response): Promise<unknown> {
-  const rawText = await response.text()
-
-  if (!rawText) {
-    return null
-  }
-
-  return JSON.parse(rawText) as unknown
+  return readResponseBody(response)
 }
 
-export function getDownstreamChatErrorMessage(data: Record<string, unknown>): string {
-  if (typeof data.error === "string" && data.error.trim()) {
-    return data.error
-  }
-
-  if (typeof data.detail === "string" && data.detail.trim()) {
-    return data.detail
-  }
-
-  return "Failed to fetch chat response from the notebook backend"
+export function getDownstreamChatErrorMessage(data: unknown): string {
+  return getResponseErrorMessage(data, "Failed to fetch chat response from the notebook backend")
 }
 
 async function forwardChatRequest(question: string, chatUrl: string): Promise<Response> {

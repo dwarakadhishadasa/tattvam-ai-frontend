@@ -1,3 +1,5 @@
+import { getResponseErrorMessage } from "@/lib/http/response"
+
 export const PPTX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
@@ -127,18 +129,10 @@ export function normalizeSlideDeckJobState(
 }
 
 export function getSlidesRouteErrorMessage(
-  data: Record<string, unknown>,
+  data: unknown,
   fallbackMessage = "Failed to process slide deck job",
 ): string {
-  if (typeof data.error === "string" && data.error.trim()) {
-    return data.error
-  }
-
-  if (typeof data.detail === "string" && data.detail.trim()) {
-    return data.detail
-  }
-
-  return fallbackMessage
+  return getResponseErrorMessage(data, fallbackMessage)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

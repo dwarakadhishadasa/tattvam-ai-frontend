@@ -6,6 +6,7 @@ import type {
   ChatTargetCompletedEvent,
   ChatTargetFailedEvent,
 } from "@/lib/chat/shared"
+import { getResponseErrorMessage, readResponseBody } from "@/lib/http/response"
 
 export async function askChatQuestion(question: string): Promise<ChatRouteSuccessResponse> {
   const response = await fetch("/api/chat", {
@@ -16,10 +17,14 @@ export async function askChatQuestion(question: string): Promise<ChatRouteSucces
     body: JSON.stringify({ question }),
   })
 
-  const data = (await response.json()) as ChatRouteSuccessResponse | ChatRouteErrorResponse
+  const data = (await readResponseBody(response)) as
+    | ChatRouteSuccessResponse
+    | ChatRouteErrorResponse
+    | string
+    | null
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(data as ChatRouteErrorResponse))
+    throw new Error(getErrorMessage(data))
   }
 
   return data as ChatRouteSuccessResponse
@@ -49,7 +54,7 @@ export async function streamChatQuestion(
   })
 
   if (!response.ok) {
-    const data = (await response.json()) as ChatRouteErrorResponse
+    const data = (await readResponseBody(response)) as ChatRouteErrorResponse | string | null
     throw new Error(getErrorMessage(data))
   }
 
@@ -136,7 +141,13 @@ export function parseChatStreamMessage(message: string): ParsedChatStreamEvent |
     return null
   }
 
-  const rawData = JSON.parse(dataLines.join("\n")) as unknown
+  let rawData: unknown
+
+  try {
+    rawData = JSON.parse(dataLines.join("\n")) as unknown
+  } catch {
+    return null
+  }
 
   if (eventName === "target.completed" && isTargetCompletedEvent(rawData)) {
     return { event: eventName, data: rawData }
@@ -170,25 +181,8 @@ function dispatchChatStreamEvent(
   callbacks.onChatCompleted?.(event.data)
 }
 
-function getErrorMessage(data: ChatRouteErrorResponse): string {
-  if (typeof data.error === "string" && data.error.trim()) {
-    return data.error
-  }
-
-  if (typeof data.detail === "string" && data.detail.trim()) {
-    return data.detail
-  }
-
-  if (
-    data.detail &&
-    typeof data.detail === "object" &&
-    "message" in data.detail &&
-    typeof data.detail.message === "string"
-  ) {
-    return data.detail.message
-  }
-
-  return "Failed to fetch chat response"
+function getErrorMessage(data: ChatRouteErrorResponse | string | null): string {
+  return getResponseErrorMessage(data, "Failed to fetch chat response")
 }
 
 function isTargetCompletedEvent(value: unknown): value is ChatStreamEventMap["target.completed"] {
