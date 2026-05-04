@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  askChatQuestion,
   extractChatStreamMessages,
   parseChatStreamMessage,
   streamChatQuestion,
@@ -151,6 +152,33 @@ describe("chat stream client helpers", () => {
         onChatCompleted: vi.fn(),
       }),
     ).rejects.toThrow("Internal Server Error")
+  })
+
+  it("uses the fallback chat error when a failed response has no error fields", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            answerBody: "Unexpected failed payload",
+            citations: [],
+            conversationId: null,
+            turnNumber: null,
+            isFollowUp: null,
+          },
+        }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      ),
+    )
+
+    await expect(askChatQuestion("What is tattvam?")).rejects.toThrow(
+      "Failed to fetch chat response",
+    )
   })
 })
 

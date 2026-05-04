@@ -181,7 +181,7 @@ function dispatchChatStreamEvent(
   callbacks.onChatCompleted?.(event.data)
 }
 
-function getErrorMessage(data: ChatRouteErrorResponse | string | null): string {
+function getErrorMessage(data: unknown): string {
   return getResponseErrorMessage(data, "Failed to fetch chat response")
 }
 
